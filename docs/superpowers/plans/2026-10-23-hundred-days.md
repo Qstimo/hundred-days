@@ -13,7 +13,7 @@ PostgreSQL, запросы пишутся на SQL и превращаются �
 через sqlc. Вычисляемые величины (серии, поинты, прогноз) живут в чистом
 пакете `domain` без базы и тестируются первыми.
 
-**Стек:** Go 1.27 (chi, pgx, sqlc, goose, testcontainers-go), Next 15 (App
+**Стек:** Go 1.27 (chi, pgx, sqlc, goose, testcontainers-go), Next 16 (App
 Router, TanStack Query v5, shadcn/ui, Recharts), PostgreSQL 17, Docker Compose,
 Caddy.
 
