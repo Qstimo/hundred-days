@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: 100 дней до
+  version: 1.0.0
+  description: |
+    Контракт — единственный источник типов для обеих сторон. Из него
+    порождаются модели и интерфейс сервера на Go, а также типы и клиент на
+    TypeScript. Сгенерированный код коммитится, CI следит, чтобы он не
+    разошёлся со спецификацией.
+
+servers:
+  - url: /api
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: hd_session
+
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Сообщение для человека.
+        code:
+          type: string
+          description: |
+            Машинный повод отказа. Интерфейсу нужен не текст, а основание
+            показать своё сообщение у конкретного поля.
+
+    User:
+      type: object
+      required: [id, login, name]
+      properties:
+        id: { type: integer, format: int64 }
+        login: { type: string }
+        name: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+
+    Settings:
+      type: object
+      required: [periodTitle, periodStart, periodDays, sleepEnabled]
+      properties:
+        periodTitle: { type: string, maxLength: 200 }
+        periodStart: { type: string, format: date }
+        periodDays: { type: integer, minimum: 1, maximum: 3650 }
+        sleepEnabled:
+          type: boolean
+          description: Показывать ли блок сна на странице дня.
+
+    Period:
+      description: |
+        Вычисляется на сервере по дате начала и длительности. Не хранится:
+        хранимый остаток разошёлся бы с календарём на следующий же день.
+      type: object
+      required: [title, start, days, dayNumber, daysLeft]
+      properties:
+        title: { type: string }
+        start: { type: string, format: date }
+        days: { type: integer }
+        dayNumber:
+          type: integer
+          description: Номер сегодняшнего дня, с единицы. Ноль — период ещё не начался.
+        daysLeft:
+          type: integer
+          description: Остаток дней, считая сегодняшний. Ноль — период завершён.
+
+    SettingsResponse:
+      type: object
+      required: [settings, period]
+      properties:
+        settings: { $ref: '#/components/schemas/Settings' }
+        period: { $ref: '#/components/schemas/Period' }
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Нет сессии или она истекла
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: |
+        Нет такой записи. Отвечается и когда запись чужая: ответ 403 сообщил
+        бы, что она существует.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Нарушен инвариант
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unprocessable:
+      description: Данные не годятся
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+security:
+  - sessionCookie: []
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      summary: Проверка живости
+      description: |
+        Не обращается ни к базе, ни к сессии: ручку спрашивает docker compose
+        в момент, когда остальное может быть не поднято.
+      responses:
+        '200':
+          description: Живо
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      summary: Вход по логину и паролю
+      description: |
+        Неизвестный логин и неверный пароль отвечают одинаково: разный ответ
+        сказал бы, какие логины в системе есть.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Вошли, cookie сессии выдана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      security: []
+      summary: Выход
+      description: |
+        Идемпотентен: отсутствие cookie — тоже успех. Открыт без сессии,
+        потому что выход с истёкшей сессией должен гасить cookie, а не
+        отвечать отказом.
+      responses:
+        '204':
+          description: Вышли, cookie погашена
+
+  /auth/me:
+    get:
+      operationId: getMe
+      summary: Текущий пользователь
+      responses:
+        '200':
+          description: Пользователь сессии
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /settings:
+    get:
+      operationId: getSettings
+      summary: Настройки и вычисленный период
+      description: |
+        Отдаёт оба сразу: интерфейсу нужны и настройки, и шапка периода, и
+        второй запрос ради шапки был бы лишним.
+      responses:
+        '200':
+          description: Настройки и период
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SettingsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: putSettings
+      summary: Сохранить настройки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Settings' }
+      responses:
+        '200':
+          description: Сохранено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }

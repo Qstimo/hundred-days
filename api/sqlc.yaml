@@ -1,0 +1,15 @@
+version: '2'
+sql:
+  - engine: postgresql
+    schema: internal/db/migrations
+    queries: internal/db/queries
+    gen:
+      go:
+        package: gen
+        out: internal/db/gen
+        sql_package: pgx/v5
+        # Необязательные колонки становятся указателями, а не sql.Null*:
+        # с указателем работает JSON и работает код, а Null-обёртки пришлось
+        # бы разворачивать в каждом хендлере.
+        emit_pointers_for_null_types: true
+        emit_json_tags: false
