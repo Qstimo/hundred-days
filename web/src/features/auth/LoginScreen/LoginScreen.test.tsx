@@ -39,6 +39,20 @@ describe('LoginScreen', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it('ссылка на регистрацию показывается только когда та открыта', () => {
+    login.mockResolvedValue(undefined);
+    const { unmount } = render(<LoginScreen isRegistrationOpen={false} />);
+    expect(
+      screen.queryByRole('link', { name: /создать первый аккаунт/i }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    render(<LoginScreen isRegistrationOpen />);
+    expect(
+      screen.getByRole('link', { name: /создать первый аккаунт/i }),
+    ).toHaveAttribute('href', '/register');
+  });
+
   it('при отказе остаётся на месте и показывает ошибку', async () => {
     login.mockRejectedValue(new Error('вход не удался'));
     render(<LoginScreen />);

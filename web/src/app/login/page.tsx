@@ -10,13 +10,16 @@ import { LoginScreen } from '@/features/auth/LoginScreen';
  */
 export default async function LoginPage() {
   const client = await createServerClient();
-  const { data } = await client.GET('/auth/me');
+  const [me, registration] = await Promise.all([
+    client.GET('/auth/me'),
+    client.GET('/auth/registration'),
+  ]);
 
-  if (data) redirect('/');
+  if (me.data) redirect('/');
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-6">
-      <LoginScreen />
+      <LoginScreen isRegistrationOpen={registration.data?.isOpen ?? false} />
     </main>
   );
 }

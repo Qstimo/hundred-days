@@ -9,3 +9,4 @@
  * клиента, называла причину сразу.
  */
 export { login, logout } from './login';
+export { isRegistrationOpen, register } from './register';

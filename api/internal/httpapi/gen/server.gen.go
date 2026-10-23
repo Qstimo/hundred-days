@@ -192,6 +192,24 @@ type Period struct {
 // поводом `rule_needs_hours`.
 type PointsRule string
 
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Login string  `json:"login"`
+	Name  *string `json:"name,omitempty"`
+
+	// Password Не короче восьми знаков — считая знаки, а не байты.
+	Password string `json:"password"`
+}
+
+// RegistrationState defines model for RegistrationState.
+type RegistrationState struct {
+	// IsOpen Открыта ли регистрация. Открыта, пока в системе нет ни одного
+	// аккаунта, и закрывается сама после первого. Приложение смотрит
+	// в интернет на своём порту, и открытая регистрация означала бы,
+	// что аккаунт создаст любой, кто наткнётся на адрес.
+	IsOpen bool `json:"isOpen"`
+}
+
 // Settings defines model for Settings.
 type Settings struct {
 	PeriodDays  int                `json:"periodDays"`
@@ -436,6 +454,9 @@ type ListTrackersParams struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// RegisterJSONRequestBody defines body for Register for application/json ContentType.
+type RegisterJSONRequestBody = RegisterRequest
+
 // CreateDayPlanJSONRequestBody defines body for CreateDayPlan for application/json ContentType.
 type CreateDayPlanJSONRequestBody = DayPlanCreate
 
@@ -477,6 +498,12 @@ type ServerInterface interface {
 	// GetMe Текущий пользователь
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// Register Завести первый аккаунт
+	// (POST /auth/register)
+	Register(w http.ResponseWriter, r *http.Request)
+	// GetRegistrationState Открыта ли регистрация
+	// (GET /auth/registration)
+	GetRegistrationState(w http.ResponseWriter, r *http.Request)
 	// GetDay Всё для страницы дня
 	// (GET /day)
 	GetDay(w http.ResponseWriter, r *http.Request, params GetDayParams)
@@ -561,6 +588,18 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request) {
 // GetMe Текущий пользователь
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Register Завести первый аккаунт
+// (POST /auth/register)
+func (_ Unimplemented) Register(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetRegistrationState Открыта ли регистрация
+// (GET /auth/registration)
+func (_ Unimplemented) GetRegistrationState(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -732,6 +771,34 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Register operation middleware
+func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Register(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRegistrationState operation middleware
+func (siw *ServerInterfaceWrapper) GetRegistrationState(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRegistrationState(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1446,6 +1513,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/stats", wrapper.GetStats)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/registration", wrapper.GetRegistrationState)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/register", wrapper.Register)
 	})
 
 	return r

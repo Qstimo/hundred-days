@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Qstimo/hundred-days/api/internal/auth"
 	"github.com/Qstimo/hundred-days/api/internal/domain"
 	"github.com/Qstimo/hundred-days/api/internal/httpapi/gen"
 	"github.com/Qstimo/hundred-days/api/internal/store"
@@ -61,6 +62,16 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrRangeInverted):
 		writeError(w, http.StatusUnprocessableEntity,
 			"конец отрезка раньше начала", "range_inverted")
+	case errors.Is(err, store.ErrRegistrationClosed):
+		writeError(w, http.StatusConflict,
+			"регистрация закрыта: аккаунт уже существует", "registration_closed")
+	case errors.Is(err, store.ErrLoginTaken):
+		writeError(w, http.StatusConflict, "логин занят", "login_taken")
+	case errors.Is(err, store.ErrEmptyLogin):
+		writeError(w, http.StatusUnprocessableEntity, "логин пустой", "login")
+	case errors.Is(err, auth.ErrPasswordTooShort):
+		writeError(w, http.StatusUnprocessableEntity,
+			"пароль короче восьми знаков", "password")
 	case errors.Is(err, store.ErrRangeTooLong):
 		writeError(w, http.StatusUnprocessableEntity,
 			"отрезок длиннее 400 дней", "range_too_long")
