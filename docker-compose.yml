@@ -48,8 +48,59 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-# Службы web и proxy добавляются в чанке 11, когда появится образ
-# веб-приложения: описанные заранее, они ломали бы «docker compose up».
+  web:
+    image: hundred-days-web:latest
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    environment:
+      # Внутренний адрес API для серверных компонентов Next. В бою браузер
+      # ходит по «/api» через прокси, а серверные компоненты — напрямую:
+      # запрос изнутри сети не должен выходить наружу и возвращаться.
+      HD_API_INTERNAL_URL: http://api:3001
+      NODE_ENV: production
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Проверка по «/login», а не по «/»: главная уводит на вход
+      # перенаправлением, и проверка по ней зависела бы от того, как fetch
+      # обходится с перенаправлением.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2-alpine
+    ports:
+      # Порт вынесен в переменную: 80 и 443 на машине заняты прокси CAIRN.
+      - '${HD_HTTP_PORT:-8080}:80'
+    environment:
+      # Значение по умолчанию задаётся здесь, а не в Caddyfile: у Caddy
+      # подстановка `{$VAR:default}` применяет default только к НЕзаданной
+      # переменной, а переданная пустая строка оставляет адрес сайта пустым —
+      # тогда Caddy принимает блок сайта за блок глобальных настроек и
+      # падает с «unrecognized global option: handle».
+      HD_SITE: ${HD_SITE:-:80}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres-data:
+  caddy-data:
