@@ -1,0 +1,55 @@
+# Имя проекта задано явно: на машине рядом стоит стек CAIRN, и выведенное из
+# имени каталога однажды совпало бы.
+name: hundred-days
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: hundred_days
+      POSTGRES_USER: hd_owner
+      POSTGRES_PASSWORD: ${HD_POSTGRES_PASSWORD:?HD_POSTGRES_PASSWORD не задан}
+      HD_APP_PASSWORD: ${HD_APP_PASSWORD:?HD_APP_PASSWORD не задан}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    # Порт наружу не публикуется: приложение ходит в базу по внутренней сети.
+    # Локальной разработке порт нужен — его добавляет
+    # docker-compose.override.yml, который compose подхватывает сам.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hd_owner -d hundred_days']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    # Имя образа задано явно, а не выведено из имени каталога: развёртывание
+    # помечает им предыдущую сборку, и откат возвращает тот же образ.
+    image: hundred-days-api:latest
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      HD_DATABASE_URL: postgres://hd_app:${HD_APP_PASSWORD:?}@postgres:5432/hundred_days
+      HD_DATABASE_OWNER_URL: postgres://hd_owner:${HD_POSTGRES_PASSWORD:?}@postgres:5432/hundred_days
+      HD_TIMEZONE: ${HD_TIMEZONE:-Europe/Moscow}
+      HD_SECURE_COOKIE: ${HD_SECURE_COOKIE:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Свой адрес живости: у него нет ни аутентификации, ни обращения к базе.
+      # В distroless нет оболочки — бинарник проверяет себя сам.
+      test: ['CMD', '/api', '-healthcheck']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+# Службы web и proxy добавляются в чанке 11, когда появится образ
+# веб-приложения: описанные заранее, они ломали бы «docker compose up».
+
+volumes:
+  postgres-data:

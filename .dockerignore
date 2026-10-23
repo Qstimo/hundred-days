@@ -1,0 +1,7 @@
+# В образ едет только исходный код приложения.
+**/node_modules
+**/.next
+api/tools
+docs
+.git
+.env

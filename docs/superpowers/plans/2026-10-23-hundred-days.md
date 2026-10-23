@@ -54,6 +54,8 @@ hundred-days/
     oapi-codegen.yaml           настройка генератора Go
   api/
     go.mod  go.sum
+    tools.sh                    запуск goose, sqlc, oapi-codegen
+    tools/go.mod                модуль инструментов: их зависимости отдельно
     sqlc.yaml                   настройка sqlc
     Dockerfile                  сборка api в статический бинарник
     cmd/
@@ -131,7 +133,11 @@ hundred-days/
 4. **Правила интерфейса** из `~/.claude/CLAUDE.md`: компонент до 100 строк, в
    своей директории, пропсы как `IProps` в `types.ts`, тест
    `ComponentName.test.tsx`, логика в `utils/`, никаких inline-массивов в JSX.
-5. **Поинты и часы — `float64`.** В базе `double precision`, а не `numeric`:
+5. **Инструменты — в своём модуле.** `goose`, `sqlc` и `oapi-codegen` живут
+   в `api/tools/go.mod` и запускаются через `api/tools.sh`. В модуле
+   приложения их зависимости раздували бы `go.sum` с шести строк до трёхсот
+   и ехали бы в `go mod download` при каждой сборке образа.
+6. **Поинты и часы — `float64`.** В базе `double precision`, а не `numeric`:
    у `numeric` в pgx тип `pgtype.Numeric`, с которым неудобно считать, а
    точности `float64` на числах вида 0.5 и 2 хватает с огромным запасом.
    Округление до двух знаков — на записи, функцией `domain.Round2`.
@@ -375,9 +381,22 @@ git commit -m "Читать настройки из окружения"
 
 ```bash
 cd ~/"Рабочий стол"/MyMVP/hundred-days/api
+mkdir -p tools && cd tools
+# Отдельный модуль для инструментов: goose тянет драйверы всех баз, какие
+# умеет, и в модуле приложения они раздули бы go.sum с шести строк до
+# трёхсот и ехали бы в `go mod download` при каждой сборке образа.
+cat > go.mod <<'EOF'
+module github.com/Qstimo/hundred-days/api/tools
+
+go 1.27.3
+EOF
 go get -tool github.com/pressly/goose/v3/cmd/goose@latest
-go tool goose --version
+cd .. && ./tools.sh goose --version
 ```
+
+Скрипт `api/tools.sh` собирает инструмент в `api/bin` и запускает его из
+каталога `api`, поэтому пути в аргументах остаются обычными. Он создаётся
+здесь же — его содержимое смотри в репозитории.
 
 - [ ] **Шаг 2: Написать миграцию**
 
@@ -829,8 +848,12 @@ docker compose logs api --tail 20
 ```bash
 cd api
 export HD_DATABASE_OWNER_URL="postgres://hd_owner:ПАРОЛЬ@localhost:5436/hundred_days"
-go tool goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" up
-go tool goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" status
+./tools.sh goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" up
+./tools.sh goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" status
+# Проверь и обратный путь: секция Down в миграции должна работать, иначе
+# откат неудачного развёртывания окажется невозможен ровно тогда, когда нужен.
+./tools.sh goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" down
+./tools.sh goose -dir internal/db/migrations postgres "$HD_DATABASE_OWNER_URL" up
 ```
 
 Ожидается: миграция `00001_init` применена.
@@ -872,8 +895,8 @@ jobs:
       - name: Сгенерированное не разошлось с источником
         working-directory: api
         run: |
-          go tool sqlc generate
-          go tool oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+          ./tools.sh sqlc generate
+          ./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
           git diff --exit-code || {
             echo 'Сгенерированный код разошёлся: перегенерируй и закоммить'
             exit 1
@@ -1693,10 +1716,10 @@ git commit --allow-empty -m "Завершить чанк вычислений"
 фиксируется вместе с кодом, и CI генерирует ровно тем же, чем разработчик.
 
 ```bash
-cd api
+cd api/tools
 go get -tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-go tool oapi-codegen --version && go tool sqlc version
+cd .. && ./tools.sh oapi-codegen --version && ./tools.sh sqlc version
 ```
 
 - [ ] **Шаг 2: Написать спецификацию входа и настроек**
@@ -1913,7 +1936,7 @@ sql:
 ```bash
 cd api
 mkdir -p internal/httpapi/gen internal/db/queries internal/db/gen
-go tool oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
 go build ./...
 ```
 
@@ -2100,7 +2123,7 @@ RETURNING user_id, period_title, period_start, period_days, sleep_enabled;
 
 ```bash
 cd api
-go tool sqlc generate
+./tools.sh sqlc generate
 go test ./internal/db/ -v
 ```
 Ожидается: PASS.
@@ -2709,7 +2732,9 @@ func runMigrations(url string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("go", "tool", "goose", "-dir", dir, "postgres", url, "up")
+	// Тот же скрипт, что у разработчика: инструменты живут в своём модуле,
+	// и вызывать их мимо него значит собирать их заново по-своему.
+	cmd := exec.Command("./tools.sh", "goose", "-dir", dir, "postgres", url, "up")
 	cmd.Dir = filepath.Join("..", "..")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -3439,8 +3464,8 @@ docker compose exec -e HD_DATABASE_URL=... api /cli create-user \
 разошлось с источником» и убедись, что он проходит локально:
 
 ```bash
-cd api && go tool sqlc generate && \
-  go tool oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml && \
+cd api && ./tools.sh sqlc generate && \
+  ./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml && \
   git diff --exit-code
 ```
 
@@ -3460,7 +3485,7 @@ git add -A && git commit -m "Завершить чанк входа"
 
 Приём тот же, что в чанке 3, и повторяется в каждой задаче:
 спецификация → `go tool oapi-codegen` → запрос в `queries/` →
-`go tool sqlc generate` → функция в `store/` с `userID` первым аргументом →
+`./tools.sh sqlc generate` → функция в `store/` с `userID` первым аргументом →
 хендлер → маршрут в `NewRouter` → интеграционный тест.
 
 ### Задача 4.1: Навыки
@@ -4570,8 +4595,8 @@ git add -A && git commit -m "Считать статистику за отрез
 
 ```bash
 cd api
-go tool sqlc generate
-go tool oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+./tools.sh sqlc generate
+./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
 git diff --exit-code
 ```
 
@@ -6189,7 +6214,7 @@ git commit -m "Проксировать поддомен приложения «
 
 - [ ] `cd api && go test ./... -race -count=1` — зелено
 - [ ] `cd web && pnpm test run && pnpm typecheck && pnpm build` — зелено
-- [ ] `go tool sqlc generate && go tool oapi-codegen ... && git diff --exit-code` — различий нет
+- [ ] `./tools.sh sqlc generate && ./tools.sh oapi-codegen ... && git diff --exit-code` — различий нет
 - [ ] CI на GitHub зелёный
 - [ ] Покрытие `internal/domain` не ниже 95%
 - [ ] Страж `queries_guard_test.go` проходит и ловит нарочно сломанный запрос
