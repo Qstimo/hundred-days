@@ -47,6 +47,10 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 		// Выход открыт нарочно: с истёкшей сессией он должен гасить cookie,
 		// а не отвечать отказом.
 		r.Post("/auth/logout", s.Logout)
+		// Регистрация открыта без сессии по самой своей природе: она
+		// существует, пока аккаунтов нет, и закрывается после первого.
+		r.Get("/auth/registration", s.GetRegistrationState)
+		r.Post("/auth/register", s.Register)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireSession)

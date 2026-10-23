@@ -30,3 +30,15 @@ DELETE FROM sessions WHERE id = $1;
 
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at < now();
+
+-- name: AnyUserExists :one
+SELECT EXISTS (SELECT 1 FROM users) AS exists;
+
+-- Проверка и вставка одним запросом: отдельная проверка перед вставкой
+-- оставила бы щель, в которую два одновременных запроса создали бы два
+-- «первых» аккаунта. Ноль вставленных строк и есть «регистрация закрыта».
+-- name: RegisterFirstUser :one
+INSERT INTO users (login, name, password_hash)
+SELECT $1, $2, $3
+WHERE NOT EXISTS (SELECT 1 FROM users)
+RETURNING id, login, name;

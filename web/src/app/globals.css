@@ -22,6 +22,9 @@
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
+  --shadow-soft: var(--elev-soft);
+  --shadow-lift: var(--elev-lift);
+  --shadow-drawer: var(--elev-drawer);
   --color-chart-grid: var(--chart-grid);
   --color-chart-axis: var(--chart-axis);
   --color-chart-muted-ink: var(--chart-muted-ink);
@@ -57,24 +60,35 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Мягкие тени с фиолетовым оттенком: серая тень на фиолетовом фоне
+     выглядит грязной. Три ступени — плоско, приподнято, выезжает.
+     Имена переменных отличаются от имён в теме нарочно: при совпадении
+     var() в @theme inline сослался бы сам на себя, и тень не нарисовалась
+     бы вовсе. Тот же приём, что у shadcn с --color-card и --card. */
+  --elev-soft: 0 1px 2px oklch(0.4 0.08 293 / 0.04), 0 2px 8px oklch(0.4 0.08 293 / 0.05);
+  --elev-lift: 0 2px 4px oklch(0.4 0.08 293 / 0.05), 0 8px 24px oklch(0.4 0.08 293 / 0.07);
+  --elev-drawer: -8px 0 32px oklch(0.4 0.08 293 / 0.12);
+  /* Светлый фиолетовый план и белые карточки: карточка поднимается над
+     фоном сама, без рамки. Графики живут на карточках, поэтому их
+     поверхность осталась белой — проверка палитры к ней и прогонялась. */
+  --background: oklch(0.985 0.006 295);
+  --foreground: oklch(0.21 0.02 295);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.02 295);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.21 0.02 295);
+  --primary: oklch(0.55 0.17 293);
+  --primary-foreground: oklch(0.99 0.004 295);
+  --secondary: oklch(0.965 0.012 295);
+  --secondary-foreground: oklch(0.3 0.04 293);
+  --muted: oklch(0.965 0.01 295);
+  --muted-foreground: oklch(0.52 0.025 293);
+  --accent: oklch(0.955 0.02 293);
+  --accent-foreground: oklch(0.38 0.08 293);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.92 0.012 295);
+  --input: oklch(0.91 0.014 295);
+  --ring: oklch(0.62 0.14 293);
   /* Палитра графиков. Значения не выбраны на глаз: они прогнаны проверкой
      на различимость при дальтонизме и на контраст к поверхности этой темы
      (белая #ffffff в светлой, карточка #171717 в тёмной). Порядок слотов —
@@ -98,10 +112,10 @@
   --ramp-700: #0d366b;
 
   /* Хром графика: сетка и оси на один шаг от поверхности, не пунктиром. */
-  --chart-grid: #e1e0d9;
-  --chart-axis: #c3c2b7;
-  --chart-muted-ink: #898781;
-  --radius: 0.625rem;
+  --chart-grid: #ebe9f2;
+  --chart-axis: #d6d2e3;
+  --chart-muted-ink: #857f99;
+  --radius: 0.875rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -113,24 +127,24 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --background: oklch(0.16 0.012 295);
+  --foreground: oklch(0.97 0.008 295);
+  --card: oklch(0.205 0.014 295);
+  --card-foreground: oklch(0.97 0.008 295);
+  --popover: oklch(0.205 0.014 295);
+  --popover-foreground: oklch(0.97 0.008 295);
+  --primary: oklch(0.72 0.14 293);
+  --primary-foreground: oklch(0.17 0.02 295);
+  --secondary: oklch(0.27 0.018 295);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.27 0.016 295);
+  --muted-foreground: oklch(0.72 0.02 293);
+  --accent: oklch(0.3 0.03 293);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.62 0.12 293);
   /* Тёмная тема — свои шаги тех же тонов, а не автоматический переворот
      светлых. Проверены против карточки #171717: все четыре слота дают не
      меньше 3:1, возмещение не требуется. */
@@ -148,9 +162,9 @@
   --ramp-550: #5598e7;
   --ramp-700: #9ec5f4;
 
-  --chart-grid: #2c2c2a;
-  --chart-axis: #383835;
-  --chart-muted-ink: #898781;
+  --chart-grid: #2a2833;
+  --chart-axis: #383545;
+  --chart-muted-ink: #8d87a3;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

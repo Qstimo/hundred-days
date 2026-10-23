@@ -367,6 +367,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Открыта ли регистрация
+         * @description Нужна форме входа, чтобы показывать ссылку на регистрацию только
+         *     когда она доступна. Ссылка на закрытую страницу хуже отсутствующей.
+         */
+        get: operations["getRegistrationState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Завести первый аккаунт
+         * @description Создаёт аккаунт и сразу входит: заставлять человека вводить те же
+         *     логин и пароль второй раз подряд незачем.
+         *
+         *     Доступно, только пока в системе нет ни одного аккаунта. Проверка и
+         *     вставка — одним запросом с условием NOT EXISTS: отдельная проверка
+         *     перед вставкой оставила бы щель, в которую два одновременных
+         *     запроса создали бы два «первых» аккаунта.
+         */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -680,6 +727,21 @@ export interface components {
             skills: components["schemas"]["StatsSkill"][];
             sleep: components["schemas"]["StatsSleep"][];
             plans: components["schemas"]["StatsPlans"];
+        };
+        RegistrationState: {
+            /**
+             * @description Открыта ли регистрация. Открыта, пока в системе нет ни одного
+             *     аккаунта, и закрывается сама после первого. Приложение смотрит
+             *     в интернет на своём порту, и открытая регистрация означала бы,
+             *     что аккаунт создаст любой, кто наткнётся на адрес.
+             */
+            isOpen: boolean;
+        };
+        RegisterRequest: {
+            login: string;
+            name?: string;
+            /** @description Не короче восьми знаков — считая знаки, а не байты. */
+            password: string;
         };
         HealthResponse: {
             status: string;
@@ -1332,6 +1394,60 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            422: components["responses"]["Unprocessable"];
+        };
+    };
+    getRegistrationState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Состояние регистрации */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationState"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Аккаунт создан, cookie сессии выдана */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Регистрация закрыта — аккаунт уже существует */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             422: components["responses"]["Unprocessable"];
         };
     };

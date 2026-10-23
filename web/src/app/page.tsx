@@ -35,5 +35,5 @@ export default async function DayPage({
     );
   }
 
-  return <DayScreen initialDay={data} date={date} />;
+  return <DayScreen initialDay={data} />;
 }

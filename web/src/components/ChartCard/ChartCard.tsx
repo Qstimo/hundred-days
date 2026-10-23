@@ -18,7 +18,7 @@ export function ChartCard({ title, hint, isRefreshing, children, table }: IProps
   const [isTable, setIsTable] = useState(false);
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border p-4">
+    <section className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-soft">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
           <h2 className="font-semibold">{title}</h2>

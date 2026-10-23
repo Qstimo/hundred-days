@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+const anyUserExists = `-- name: AnyUserExists :one
+SELECT EXISTS (SELECT 1 FROM users) AS exists
+`
+
+func (q *Queries) AnyUserExists(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, anyUserExists)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createSession = `-- name: CreateSession :exec
 INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)
 `
@@ -140,6 +151,35 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 		&i.Name,
 		&i.PasswordHash,
 	)
+	return i, err
+}
+
+const registerFirstUser = `-- name: RegisterFirstUser :one
+INSERT INTO users (login, name, password_hash)
+SELECT $1, $2, $3
+WHERE NOT EXISTS (SELECT 1 FROM users)
+RETURNING id, login, name
+`
+
+type RegisterFirstUserParams struct {
+	Login        string
+	Name         string
+	PasswordHash string
+}
+
+type RegisterFirstUserRow struct {
+	ID    int64
+	Login string
+	Name  string
+}
+
+// Проверка и вставка одним запросом: отдельная проверка перед вставкой
+// оставила бы щель, в которую два одновременных запроса создали бы два
+// «первых» аккаунта. Ноль вставленных строк и есть «регистрация закрыта».
+func (q *Queries) RegisterFirstUser(ctx context.Context, arg RegisterFirstUserParams) (RegisterFirstUserRow, error) {
+	row := q.db.QueryRow(ctx, registerFirstUser, arg.Login, arg.Name, arg.PasswordHash)
+	var i RegisterFirstUserRow
+	err := row.Scan(&i.ID, &i.Login, &i.Name)
 	return i, err
 }
 

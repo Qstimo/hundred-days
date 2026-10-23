@@ -10,7 +10,7 @@ export function TrackerTable({ trackers, skills, onEdit, onCreate }: IProps) {
     id == null ? '—' : (skills.find((s) => s.id === id)?.title ?? '—');
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-soft">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold">Трекеры</h2>
         <Button size="sm" onClick={onCreate}>

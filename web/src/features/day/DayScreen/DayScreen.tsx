@@ -21,8 +21,11 @@ import type { IProps } from './types';
  * служит точкой отсчёта для навигации. Брать её из браузера значило бы
  * завести второй источник правды, который разойдётся с первым в полночь.
  */
-export function DayScreen({ initialDay, date }: IProps) {
-  const { data } = useQueryDay(date, initialDay);
+export function DayScreen({ initialDay }: IProps) {
+  // Ключ — разрешённая сервером дата, а не присланный параметр: на главной
+  // параметра нет, и ключ «today» разошёлся бы с тем, под который пишут
+  // мутации.
+  const { data } = useQueryDay(initialDay.date, initialDay);
   const day = data ?? initialDay;
 
   // Сегодня приходит в периоде: его знает сервер по своей зоне. Выводить
@@ -36,17 +39,29 @@ export function DayScreen({ initialDay, date }: IProps) {
 
       <DateNavigator date={day.date} today={day.period.today} />
 
-      <TrackerList items={day.trackers} date={day.date} isEditable={!isFuture} />
+      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+        <TrackerList items={day.trackers} date={day.date} isEditable={!isFuture} />
+      </div>
 
-      <DayPlanList
-        plans={day.plans}
-        date={day.date}
-        carryOverAvailable={day.carryOverAvailable}
-      />
+      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+        <DayPlanList
+          plans={day.plans}
+          date={day.date}
+          carryOverAvailable={day.carryOverAvailable}
+        />
+      </div>
 
-      {day.sleepEnabled && <SleepBlock sleep={day.sleep ?? null} date={day.date} />}
+      {day.sleepEnabled && (
+        <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+          <SleepBlock sleep={day.sleep ?? null} date={day.date} />
+        </div>
+      )}
 
-      <SkillProgressList skills={day.skills} />
+      {day.skills.length > 0 && (
+        <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+          <SkillProgressList skills={day.skills} />
+        </div>
+      )}
     </main>
   );
 }

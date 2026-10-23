@@ -14,7 +14,7 @@ export interface IProps {
  */
 export function StreaksSection({ trackers, isRefreshing }: IProps) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg border p-4">
+    <section className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 shadow-soft">
       <div className="flex flex-col gap-0.5">
         <h2 className="font-semibold">Серии и выполнение</h2>
         <p className="text-xs text-muted-foreground">

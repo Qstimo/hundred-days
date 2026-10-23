@@ -453,6 +453,29 @@ components:
           items: { $ref: '#/components/schemas/StatsSleep' }
         plans: { $ref: '#/components/schemas/StatsPlans' }
 
+    RegistrationState:
+      type: object
+      required: [isOpen]
+      properties:
+        isOpen:
+          type: boolean
+          description: |
+            Открыта ли регистрация. Открыта, пока в системе нет ни одного
+            аккаунта, и закрывается сама после первого. Приложение смотрит
+            в интернет на своём порту, и открытая регистрация означала бы,
+            что аккаунт создаст любой, кто наткнётся на адрес.
+
+    RegisterRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, maxLength: 100 }
+        password:
+          type: string
+          minLength: 8
+          description: Не короче восьми знаков — считая знаки, а не байты.
+
     HealthResponse:
       type: object
       required: [status]
@@ -941,4 +964,50 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/StatsResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /auth/registration:
+    get:
+      operationId: getRegistrationState
+      security: []
+      summary: Открыта ли регистрация
+      description: |
+        Нужна форме входа, чтобы показывать ссылку на регистрацию только
+        когда она доступна. Ссылка на закрытую страницу хуже отсутствующей.
+      responses:
+        '200':
+          description: Состояние регистрации
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationState' }
+
+  /auth/register:
+    post:
+      operationId: register
+      security: []
+      summary: Завести первый аккаунт
+      description: |
+        Создаёт аккаунт и сразу входит: заставлять человека вводить те же
+        логин и пароль второй раз подряд незачем.
+
+        Доступно, только пока в системе нет ни одного аккаунта. Проверка и
+        вставка — одним запросом с условием NOT EXISTS: отдельная проверка
+        перед вставкой оставила бы щель, в которую два одновременных
+        запроса создали бы два «первых» аккаунта.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Аккаунт создан, cookie сессии выдана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '409':
+          description: Регистрация закрыта — аккаунт уже существует
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/Unprocessable' }

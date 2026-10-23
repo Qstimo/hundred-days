@@ -49,6 +49,27 @@ describe('DayPlanList', () => {
     });
   });
 
+  it('добавляет пункт кнопкой', async () => {
+    renderList([]);
+
+    await userEvent.type(screen.getByLabelText(/новый пункт/i), 'Купить хлеб');
+    await userEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+
+    expect(POST).toHaveBeenCalledWith('/day-plans', {
+      body: { date: '2026-10-23', title: 'Купить хлеб' },
+    });
+  });
+
+  it('кнопка выключена, пока поле пусто', async () => {
+    renderList([]);
+
+    expect(screen.getByRole('button', { name: 'Добавить' })).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText(/новый пункт/i), 'Что-то');
+
+    expect(screen.getByRole('button', { name: 'Добавить' })).toBeEnabled();
+  });
+
   it('не добавляет пустой пункт', async () => {
     renderList([]);
 
