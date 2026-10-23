@@ -120,3 +120,9 @@ func withID(h func(http.ResponseWriter, *http.Request, int64)) http.HandlerFunc 
 		h(w, r, id)
 	}
 }
+
+// chiURLParam достаёт часть пути по имени. Обёртка нужна, чтобы хендлеры не
+// тянули маршрутизатор напрямую: он деталь сборки, а не их дело.
+func chiURLParam(r *http.Request, name string) string {
+	return chi.URLParam(r, name)
+}

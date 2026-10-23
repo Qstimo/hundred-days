@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
@@ -47,6 +48,97 @@ func (e TrackerMode) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// CarryOverRequest defines model for CarryOverRequest.
+type CarryOverRequest struct {
+	// Date День, в который переносим. Берём из предыдущего.
+	Date openapi_types.Date `json:"date"`
+}
+
+// DayPlan defines model for DayPlan.
+type DayPlan struct {
+	// CarriedFromId След переноса: пункт скопирован со вчера. В исходном дне он
+	// остаётся незакрытым — видно, что планировалось и уехало, а не
+	// исчезло.
+	CarriedFromId *int64             `json:"carriedFromId,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	Done          bool               `json:"done"`
+	DoneAt        *time.Time         `json:"doneAt,omitempty"`
+	Id            int64              `json:"id"`
+	SortOrder     int                `json:"sortOrder"`
+	Title         string             `json:"title"`
+}
+
+// DayPlanCreate defines model for DayPlanCreate.
+type DayPlanCreate struct {
+	Date      openapi_types.Date `json:"date"`
+	SortOrder *int               `json:"sortOrder,omitempty"`
+	Title     string             `json:"title"`
+}
+
+// DayPlanPatch Правятся только присланные поля. Отсутствие поля — «не менять», а не
+// «очистить».
+type DayPlanPatch struct {
+	Done      *bool   `json:"done,omitempty"`
+	SortOrder *int    `json:"sortOrder,omitempty"`
+	Title     *string `json:"title,omitempty"`
+}
+
+// DayResponse defines model for DayResponse.
+type DayResponse struct {
+	// CarryOverAvailable Есть ли что переносить со вчера. Кнопка показывается только тогда.
+	CarryOverAvailable bool               `json:"carryOverAvailable"`
+	Date               openapi_types.Date `json:"date"`
+
+	// Period Вычисляется на сервере по дате начала и длительности. Не хранится:
+	// хранимый остаток разошёлся бы с календарём на следующий же день.
+	Period       Period       `json:"period"`
+	Plans        []DayPlan    `json:"plans"`
+	Skills       []DaySkill   `json:"skills"`
+	Sleep        *Sleep       `json:"sleep,omitempty"`
+	SleepEnabled bool         `json:"sleepEnabled"`
+	Trackers     []DayTracker `json:"trackers"`
+}
+
+// DaySkill defines model for DaySkill.
+type DaySkill struct {
+	// EarnedPoints Забрано поинтов за всё время. Сумма зафиксированных в отметках
+	// значений, а не пересчёт по текущей цене трекеров.
+	EarnedPoints float32 `json:"earnedPoints"`
+	Skill        Skill   `json:"skill"`
+}
+
+// DayTracker defines model for DayTracker.
+type DayTracker struct {
+	// Entry Отметка за этот день. Пусто — не сделано.
+	Entry   *Entry  `json:"entry,omitempty"`
+	Tracker Tracker `json:"tracker"`
+
+	// WeekDone Сколько раз выполнен на неделе, в которую попадает запрошенная
+	// дата. Неделя считается с понедельника.
+	WeekDone   int `json:"weekDone"`
+	WeekTarget int `json:"weekTarget"`
+}
+
+// Entry Отметка выполнения трекера за день. Существование отметки и есть
+// «сделано»: отдельного значения «не сделано» нет, снятие галочки
+// удаляет запись.
+type Entry struct {
+	Date openapi_types.Date `json:"date"`
+
+	// Hours Часы. Только у трекера с режимом `check_hours`.
+	Hours *float32 `json:"hours,omitempty"`
+
+	// PointsAwarded Поинты, зафиксированные в момент записи. Правка цены трекера их
+	// не меняет: иначе весь прошлый прогресс навыка переписывался бы
+	// от изменения настройки, а не от сделанной работы.
+	PointsAwarded float32 `json:"pointsAwarded"`
+}
+
+// EntryInput defines model for EntryInput.
+type EntryInput struct {
+	Hours *float32 `json:"hours,omitempty"`
 }
 
 // Error defines model for Error.
@@ -131,6 +223,32 @@ type SkillInput struct {
 	UnitLabel    *string `json:"unitLabel,omitempty"`
 }
 
+// Sleep defines model for Sleep.
+type Sleep struct {
+	Date openapi_types.Date `json:"date"`
+
+	// DurationMinutes Длительность в минутах. Вычисляется, не хранится. Переход через
+	// полночь учтён: лёг в 23:40, встал в 7:10 — 450 минут. Пусто,
+	// если заполнено только одно из двух времён.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+
+	// Quality Самооценка сна.
+	Quality *int `json:"quality,omitempty"`
+
+	// WentToBedAt Время суток «ЧЧ:ММ». Во сколько лёг.
+	WentToBedAt *string `json:"wentToBedAt,omitempty"`
+
+	// WokeUpAt Время суток «ЧЧ:ММ». Во сколько встал.
+	WokeUpAt *string `json:"wokeUpAt,omitempty"`
+}
+
+// SleepInput defines model for SleepInput.
+type SleepInput struct {
+	Quality     *int    `json:"quality,omitempty"`
+	WentToBedAt *string `json:"wentToBedAt,omitempty"`
+	WokeUpAt    *string `json:"wokeUpAt,omitempty"`
+}
+
 // Tracker defines model for Tracker.
 type Tracker struct {
 	Archived bool `json:"archived"`
@@ -202,6 +320,11 @@ type Unauthorized = Error
 // Unprocessable defines model for Unprocessable.
 type Unprocessable = Error
 
+// GetDayParams defines parameters for GetDay.
+type GetDayParams struct {
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+}
+
 // ListSkillsParams defines parameters for ListSkills.
 type ListSkillsParams struct {
 	// IncludeArchived Включить архивные.
@@ -216,6 +339,15 @@ type ListTrackersParams struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// CreateDayPlanJSONRequestBody defines body for CreateDayPlan for application/json ContentType.
+type CreateDayPlanJSONRequestBody = DayPlanCreate
+
+// CarryOverDayPlansJSONRequestBody defines body for CarryOverDayPlans for application/json ContentType.
+type CarryOverDayPlansJSONRequestBody = CarryOverRequest
+
+// PatchDayPlanJSONRequestBody defines body for PatchDayPlan for application/json ContentType.
+type PatchDayPlanJSONRequestBody = DayPlanPatch
+
 // PutSettingsJSONRequestBody defines body for PutSettings for application/json ContentType.
 type PutSettingsJSONRequestBody = Settings
 
@@ -225,11 +357,17 @@ type CreateSkillJSONRequestBody = SkillInput
 // UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
 type UpdateSkillJSONRequestBody = SkillInput
 
+// PutSleepJSONRequestBody defines body for PutSleep for application/json ContentType.
+type PutSleepJSONRequestBody = SleepInput
+
 // CreateTrackerJSONRequestBody defines body for CreateTracker for application/json ContentType.
 type CreateTrackerJSONRequestBody = TrackerInput
 
 // UpdateTrackerJSONRequestBody defines body for UpdateTracker for application/json ContentType.
 type UpdateTrackerJSONRequestBody = TrackerInput
+
+// PutEntryJSONRequestBody defines body for PutEntry for application/json ContentType.
+type PutEntryJSONRequestBody = EntryInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -242,6 +380,21 @@ type ServerInterface interface {
 	// GetMe Текущий пользователь
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetDay Всё для страницы дня
+	// (GET /day)
+	GetDay(w http.ResponseWriter, r *http.Request, params GetDayParams)
+	// CreateDayPlan Добавить пункт плана
+	// (POST /day-plans)
+	CreateDayPlan(w http.ResponseWriter, r *http.Request)
+	// CarryOverDayPlans Подтянуть незакрытые со вчера
+	// (POST /day-plans/carry-over)
+	CarryOverDayPlans(w http.ResponseWriter, r *http.Request)
+	// DeleteDayPlan Удалить пункт
+	// (DELETE /day-plans/{id})
+	DeleteDayPlan(w http.ResponseWriter, r *http.Request, id int64)
+	// PatchDayPlan Правка пункта
+	// (PATCH /day-plans/{id})
+	PatchDayPlan(w http.ResponseWriter, r *http.Request, id int64)
 	// GetHealth Проверка живости
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -263,6 +416,12 @@ type ServerInterface interface {
 	// UpdateSkill Правка навыка
 	// (PUT /skills/{id})
 	UpdateSkill(w http.ResponseWriter, r *http.Request, id int64)
+	// DeleteSleep Убрать запись сна
+	// (DELETE /sleep/{date})
+	DeleteSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date)
+	// PutSleep Записать сон
+	// (PUT /sleep/{date})
+	PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date)
 	// ListTrackers Трекеры
 	// (GET /trackers)
 	ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams)
@@ -275,6 +434,12 @@ type ServerInterface interface {
 	// UpdateTracker Правка трекера
 	// (PUT /trackers/{id})
 	UpdateTracker(w http.ResponseWriter, r *http.Request, id int64)
+	// DeleteEntry Снять отметку
+	// (DELETE /trackers/{id}/entries/{date})
+	DeleteEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date)
+	// PutEntry Отметить выполнение
+	// (PUT /trackers/{id}/entries/{date})
+	PutEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -296,6 +461,36 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request) {
 // GetMe Текущий пользователь
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetDay Всё для страницы дня
+// (GET /day)
+func (_ Unimplemented) GetDay(w http.ResponseWriter, r *http.Request, params GetDayParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateDayPlan Добавить пункт плана
+// (POST /day-plans)
+func (_ Unimplemented) CreateDayPlan(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CarryOverDayPlans Подтянуть незакрытые со вчера
+// (POST /day-plans/carry-over)
+func (_ Unimplemented) CarryOverDayPlans(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteDayPlan Удалить пункт
+// (DELETE /day-plans/{id})
+func (_ Unimplemented) DeleteDayPlan(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PatchDayPlan Правка пункта
+// (PATCH /day-plans/{id})
+func (_ Unimplemented) PatchDayPlan(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -341,6 +536,18 @@ func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, id in
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// DeleteSleep Убрать запись сна
+// (DELETE /sleep/{date})
+func (_ Unimplemented) DeleteSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutSleep Записать сон
+// (PUT /sleep/{date})
+func (_ Unimplemented) PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListTrackers Трекеры
 // (GET /trackers)
 func (_ Unimplemented) ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams) {
@@ -362,6 +569,18 @@ func (_ Unimplemented) DeleteTracker(w http.ResponseWriter, r *http.Request, id 
 // UpdateTracker Правка трекера
 // (PUT /trackers/{id})
 func (_ Unimplemented) UpdateTracker(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteEntry Снять отметку
+// (DELETE /trackers/{id}/entries/{date})
+func (_ Unimplemented) DeleteEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutEntry Отметить выполнение
+// (PUT /trackers/{id}/entries/{date})
+func (_ Unimplemented) PutEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -407,6 +626,119 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDay operation middleware
+func (siw *ServerInterfaceWrapper) GetDay(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDayParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", r.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDay(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) CreateDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDayPlan(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CarryOverDayPlans operation middleware
+func (siw *ServerInterfaceWrapper) CarryOverDayPlans(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CarryOverDayPlans(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDayPlan(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) PatchDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchDayPlan(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -557,6 +889,58 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteSleep operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSleep(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSleep(w, r, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSleep operation middleware
+func (siw *ServerInterfaceWrapper) PutSleep(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSleep(w, r, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTrackers operation middleware
 func (siw *ServerInterfaceWrapper) ListTrackers(w http.ResponseWriter, r *http.Request) {
 
@@ -647,6 +1031,76 @@ func (siw *ServerInterfaceWrapper) UpdateTracker(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateTracker(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEntry operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEntry(w, r, id, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutEntry operation middleware
+func (siw *ServerInterfaceWrapper) PutEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutEntry(w, r, id, date)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -810,6 +1264,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/trackers/{id}", wrapper.UpdateTracker)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/trackers/{id}/entries/{date}", wrapper.DeleteEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/trackers/{id}/entries/{date}", wrapper.PutEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/sleep/{date}", wrapper.DeleteSleep)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/sleep/{date}", wrapper.PutSleep)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/day-plans", wrapper.CreateDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/day-plans/carry-over", wrapper.CarryOverDayPlans)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/day-plans/{id}", wrapper.DeleteDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/day-plans/{id}", wrapper.PatchDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/day", wrapper.GetDay)
 	})
 
 	return r

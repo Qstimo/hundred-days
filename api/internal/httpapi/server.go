@@ -52,6 +52,14 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 			r.Use(s.requireSession)
 
 			r.Get("/auth/me", s.GetMe)
+
+			r.Get("/day", func(w http.ResponseWriter, r *http.Request) {
+				params, ok := dayParamsFrom(w, r)
+				if !ok {
+					return
+				}
+				s.GetDay(w, r, params)
+			})
 			r.Get("/settings", s.GetSettings)
 			r.Put("/settings", s.PutSettings)
 
@@ -68,6 +76,19 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 			r.Post("/trackers", s.CreateTracker)
 			r.Put("/trackers/{id}", withID(s.UpdateTracker))
 			r.Delete("/trackers/{id}", withID(s.DeleteTracker))
+
+			r.Put("/trackers/{id}/entries/{date}", withIDAndDate(s.PutEntry))
+			r.Delete("/trackers/{id}/entries/{date}", withIDAndDate(s.DeleteEntry))
+
+			r.Put("/sleep/{date}", withDate(s.PutSleep))
+			r.Delete("/sleep/{date}", withDate(s.DeleteSleep))
+
+			r.Post("/day-plans", s.CreateDayPlan)
+			// Путь переноса объявлен до «{id}»: иначе chi принял бы
+			// «carry-over» за идентификатор пункта.
+			r.Post("/day-plans/carry-over", s.CarryOverDayPlans)
+			r.Patch("/day-plans/{id}", withID(s.PatchDayPlan))
+			r.Delete("/day-plans/{id}", withID(s.DeleteDayPlan))
 			// Остальные маршруты добавляются в чанках 4–6.
 		})
 	})
