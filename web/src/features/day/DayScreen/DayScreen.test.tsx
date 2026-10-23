@@ -59,11 +59,11 @@ function day(overrides: Partial<DayResponse> = {}): DayResponse {
   };
 }
 
-function renderScreen(initialDay: DayResponse, date?: string) {
+function renderScreen(initialDay: DayResponse) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <DayScreen initialDay={initialDay} date={date} />
+      <DayScreen initialDay={initialDay} />
     </QueryClientProvider>,
   );
 }
@@ -97,8 +97,7 @@ describe('DayScreen', () => {
   // Отметить будущий день нельзя: сервер отвергает такую запись, и галочки
   // должны быть выключены, а не отправлять запрос в отказ.
   it('в будущем дне отметки выключены', () => {
-    renderScreen(
-      day({
+    renderScreen(day({
         date: '2026-11-01',
         period: {
           title: '100 дней до',
@@ -108,9 +107,7 @@ describe('DayScreen', () => {
           dayNumber: 23,
           daysLeft: 78,
         },
-      }),
-      '2026-11-01',
-    );
+      }));
 
     expect(screen.getByRole('checkbox', { name: 'Занятие' })).toHaveAttribute(
       'aria-disabled',

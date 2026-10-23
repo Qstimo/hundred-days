@@ -21,8 +21,11 @@ import type { IProps } from './types';
  * служит точкой отсчёта для навигации. Брать её из браузера значило бы
  * завести второй источник правды, который разойдётся с первым в полночь.
  */
-export function DayScreen({ initialDay, date }: IProps) {
-  const { data } = useQueryDay(date, initialDay);
+export function DayScreen({ initialDay }: IProps) {
+  // Ключ — разрешённая сервером дата, а не присланный параметр: на главной
+  // параметра нет, и ключ «today» разошёлся бы с тем, под который пишут
+  // мутации.
+  const { data } = useQueryDay(initialDay.date, initialDay);
   const day = data ?? initialDay;
 
   // Сегодня приходит в периоде: его знает сервер по своей зоне. Выводить
