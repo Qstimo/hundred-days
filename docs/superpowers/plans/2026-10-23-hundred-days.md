@@ -6101,6 +6101,17 @@ git add README.md && git commit -m "Описать разработку и ра�
 
 - [ ] **Шаг 1: Создать репозиторий на GitHub**
 
+На этой машине **нет ни `gh`, ни сохранённого доступа на запись в GitHub**
+(ни `~/.git-credentials`, ни `~/.config/gh`, ни переменных окружения), а
+`sudo` просит пароль. Поэтому шаг выполняет человек:
+
+```bash
+sudo apt install gh
+gh auth login
+```
+
+После этого:
+
 ```bash
 cd ~/"Рабочий стол"/MyMVP/hundred-days
 gh repo create Qstimo/hundred-days --private --source=. --remote=origin
