@@ -49,6 +49,12 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrUnknownRule):
 		writeError(w, http.StatusUnprocessableEntity,
 			"неизвестное правило начисления", "points_rule")
+	case errors.Is(err, store.ErrHoursRequired):
+		writeError(w, http.StatusUnprocessableEntity,
+			"у этого трекера поинты считаются за час — укажите часы", "hours_required")
+	case errors.Is(err, store.ErrHoursOutOfRange):
+		writeError(w, http.StatusUnprocessableEntity,
+			"часы должны быть больше нуля и не больше 24", "hours")
 	default:
 		writeError(w, http.StatusInternalServerError, "внутренняя ошибка", "")
 	}

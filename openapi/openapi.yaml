@@ -170,6 +170,37 @@ components:
         sortOrder: { type: integer }
         archived: { type: boolean }
 
+    Entry:
+      description: |
+        Отметка выполнения трекера за день. Существование отметки и есть
+        «сделано»: отдельного значения «не сделано» нет, снятие галочки
+        удаляет запись.
+      type: object
+      required: [date, pointsAwarded]
+      properties:
+        date: { type: string, format: date }
+        hours:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 24
+          description: Часы. Только у трекера с режимом `check_hours`.
+        pointsAwarded:
+          type: number
+          description: |
+            Поинты, зафиксированные в момент записи. Правка цены трекера их
+            не меняет: иначе весь прошлый прогресс навыка переписывался бы
+            от изменения настройки, а не от сделанной работы.
+
+    EntryInput:
+      type: object
+      properties:
+        hours:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 24
+
     HealthResponse:
       type: object
       required: [status]
@@ -447,5 +478,49 @@ paths:
         интерфейс мог предупредить до удаления.
       responses:
         '204': { description: Удалён }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /trackers/{id}/entries/{date}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+      - name: date
+        in: path
+        required: true
+        schema: { type: string, format: date }
+    put:
+      operationId: putEntry
+      summary: Отметить выполнение
+      description: |
+        Повторный вызов перезаписывает часы и пересчитывает поинты по текущей
+        цене трекера — это правка отметки за тот день, а не новая запись.
+
+        Правило «за час» без часов отвергается: отметить выполнение, не
+        сказав сколько, значит начислить ноль, и это почти наверняка ошибка.
+
+        Дата в будущем отвергается. «Сегодня» определяет сервер по своей
+        зоне, а не браузер.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EntryInput' }
+      responses:
+        '200':
+          description: Отметка поставлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Entry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      operationId: deleteEntry
+      summary: Снять отметку
+      responses:
+        '204': { description: Снята }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }

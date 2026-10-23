@@ -49,6 +49,26 @@ func (e TrackerMode) Valid() bool {
 	}
 }
 
+// Entry Отметка выполнения трекера за день. Существование отметки и есть
+// «сделано»: отдельного значения «не сделано» нет, снятие галочки
+// удаляет запись.
+type Entry struct {
+	Date openapi_types.Date `json:"date"`
+
+	// Hours Часы. Только у трекера с режимом `check_hours`.
+	Hours *float32 `json:"hours,omitempty"`
+
+	// PointsAwarded Поинты, зафиксированные в момент записи. Правка цены трекера их
+	// не меняет: иначе весь прошлый прогресс навыка переписывался бы
+	// от изменения настройки, а не от сделанной работы.
+	PointsAwarded float32 `json:"pointsAwarded"`
+}
+
+// EntryInput defines model for EntryInput.
+type EntryInput struct {
+	Hours *float32 `json:"hours,omitempty"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Машинный повод отказа. Интерфейсу нужен не текст, а основание
@@ -231,6 +251,9 @@ type CreateTrackerJSONRequestBody = TrackerInput
 // UpdateTrackerJSONRequestBody defines body for UpdateTracker for application/json ContentType.
 type UpdateTrackerJSONRequestBody = TrackerInput
 
+// PutEntryJSONRequestBody defines body for PutEntry for application/json ContentType.
+type PutEntryJSONRequestBody = EntryInput
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Login Вход по логину и паролю
@@ -275,6 +298,12 @@ type ServerInterface interface {
 	// UpdateTracker Правка трекера
 	// (PUT /trackers/{id})
 	UpdateTracker(w http.ResponseWriter, r *http.Request, id int64)
+	// DeleteEntry Снять отметку
+	// (DELETE /trackers/{id}/entries/{date})
+	DeleteEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date)
+	// PutEntry Отметить выполнение
+	// (PUT /trackers/{id}/entries/{date})
+	PutEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -362,6 +391,18 @@ func (_ Unimplemented) DeleteTracker(w http.ResponseWriter, r *http.Request, id 
 // UpdateTracker Правка трекера
 // (PUT /trackers/{id})
 func (_ Unimplemented) UpdateTracker(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteEntry Снять отметку
+// (DELETE /trackers/{id}/entries/{date})
+func (_ Unimplemented) DeleteEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutEntry Отметить выполнение
+// (PUT /trackers/{id}/entries/{date})
+func (_ Unimplemented) PutEntry(w http.ResponseWriter, r *http.Request, id int64, date openapi_types.Date) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -656,6 +697,76 @@ func (siw *ServerInterfaceWrapper) UpdateTracker(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteEntry operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEntry(w, r, id, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutEntry operation middleware
+func (siw *ServerInterfaceWrapper) PutEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutEntry(w, r, id, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -810,6 +921,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/trackers/{id}", wrapper.UpdateTracker)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/trackers/{id}/entries/{date}", wrapper.DeleteEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/trackers/{id}/entries/{date}", wrapper.PutEntry)
 	})
 
 	return r
