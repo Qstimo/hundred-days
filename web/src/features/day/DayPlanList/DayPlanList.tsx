@@ -58,15 +58,23 @@ export function DayPlanList({ plans, date, carryOverAvailable }: IProps) {
         </ul>
       )}
 
-      <Input
-        aria-label="Новый пункт"
-        placeholder="Что сделать сегодня"
-        value={newTitle}
-        onChange={(e) => setNewTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleAdd();
-        }}
-      />
+      {/* Кнопка рядом с полем, а не только Enter: по одному полю ввода не
+          видно, что оно вообще что-то добавляет, и человек набирает текст,
+          уходит и считает, что пункт не добавился. */}
+      <div className="flex gap-2">
+        <Input
+          aria-label="Новый пункт"
+          placeholder="Что сделать сегодня"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleAdd();
+          }}
+        />
+        <Button onClick={handleAdd} disabled={newTitle.trim() === ''}>
+          Добавить
+        </Button>
+      </div>
 
       <DayPlanDrawer
         plan={editing}

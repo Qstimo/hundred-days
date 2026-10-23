@@ -7,10 +7,12 @@ import type { DayResponse } from '../hooks';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-const GET = vi.fn();
-const PUT = vi.fn(() => Promise.resolve({ data: {} }));
-const POST = vi.fn(() => Promise.resolve({ data: {} }));
-const DELETE = vi.fn(() => Promise.resolve({ data: {} }));
+const GET = vi.fn((..._args: unknown[]): Promise<{ data: DayResponse | undefined }> =>
+  Promise.resolve({ data: undefined }),
+);
+const PUT = vi.fn((..._args: unknown[]) => Promise.resolve({ data: {} }));
+const POST = vi.fn((..._args: unknown[]) => Promise.resolve({ data: {} }));
+const DELETE = vi.fn((..._args: unknown[]) => Promise.resolve({ data: {} }));
 vi.mock('@/api-client', () => ({
   apiClient: {
     GET: (...a: unknown[]) => GET(...a),

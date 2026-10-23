@@ -11,7 +11,7 @@ import type { IProps } from './types';
  */
 export function StatTile({ label, value, hint }: IProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border p-4">
+    <div className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card p-4 shadow-soft">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="text-3xl font-semibold">{value}</span>
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}

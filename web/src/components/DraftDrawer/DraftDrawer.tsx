@@ -54,7 +54,7 @@ export function DraftDrawer({
   return (
     <aside
       aria-label={title}
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l bg-background shadow-lg"
+      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-border/60 bg-card shadow-drawer"
     >
       <header className="sticky top-0 flex items-center justify-between gap-4 border-b bg-background p-4">
         <h2 className="text-lg font-semibold">{title}</h2>

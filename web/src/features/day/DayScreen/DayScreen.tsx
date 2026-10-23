@@ -39,17 +39,29 @@ export function DayScreen({ initialDay }: IProps) {
 
       <DateNavigator date={day.date} today={day.period.today} />
 
-      <TrackerList items={day.trackers} date={day.date} isEditable={!isFuture} />
+      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+        <TrackerList items={day.trackers} date={day.date} isEditable={!isFuture} />
+      </div>
 
-      <DayPlanList
-        plans={day.plans}
-        date={day.date}
-        carryOverAvailable={day.carryOverAvailable}
-      />
+      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+        <DayPlanList
+          plans={day.plans}
+          date={day.date}
+          carryOverAvailable={day.carryOverAvailable}
+        />
+      </div>
 
-      {day.sleepEnabled && <SleepBlock sleep={day.sleep ?? null} date={day.date} />}
+      {day.sleepEnabled && (
+        <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+          <SleepBlock sleep={day.sleep ?? null} date={day.date} />
+        </div>
+      )}
 
-      <SkillProgressList skills={day.skills} />
+      {day.skills.length > 0 && (
+        <div className="rounded-xl border border-border/60 bg-card p-4 shadow-soft">
+          <SkillProgressList skills={day.skills} />
+        </div>
+      )}
     </main>
   );
 }
