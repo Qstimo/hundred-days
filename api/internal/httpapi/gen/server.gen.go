@@ -93,22 +93,12 @@ type DayResponse struct {
 
 	// Period Вычисляется на сервере по дате начала и длительности. Не хранится:
 	// хранимый остаток разошёлся бы с календарём на следующий же день.
-	Period       Period     `json:"period"`
-	Plans        []DayPlan  `json:"plans"`
-	Skills       []DaySkill `json:"skills"`
-	Sleep        *Sleep     `json:"sleep,omitempty"`
-	SleepEnabled bool       `json:"sleepEnabled"`
-
-	// Today Сегодняшняя дата по зоне сервера. Нужна клиенту, чтобы знать,
-	// какой день открыт — прошлый, сегодняшний или будущий, — и
-	// выключить отметки в будущем.
-	//
-	// Выводить её из периода нельзя: у не начавшегося периода номер
-	// дня нулевой, и арифметика «начало плюс номер» дала бы неверную
-	// дату. Браузерная дата тоже не годится — она разойдётся с
-	// серверной в полночь и в другой зоне.
-	Today    openapi_types.Date `json:"today"`
-	Trackers []DayTracker       `json:"trackers"`
+	Period       Period       `json:"period"`
+	Plans        []DayPlan    `json:"plans"`
+	Skills       []DaySkill   `json:"skills"`
+	Sleep        *Sleep       `json:"sleep,omitempty"`
+	SleepEnabled bool         `json:"sleepEnabled"`
+	Trackers     []DayTracker `json:"trackers"`
 }
 
 // DaySkill defines model for DaySkill.
@@ -183,6 +173,17 @@ type Period struct {
 	DaysLeft int                `json:"daysLeft"`
 	Start    openapi_types.Date `json:"start"`
 	Title    string             `json:"title"`
+
+	// Today Сегодняшняя дата по зоне сервера. Живёт здесь, а не отдельным
+	// полем в каждом ответе: это такая же вычисленная величина, как
+	// номер дня и остаток.
+	//
+	// Клиенту она нужна, чтобы знать, открыт прошлый день, сегодняшний
+	// или будущий, и чтобы отсчитывать отрезки дашборда. Выводить её
+	// арифметикой «начало плюс номер дня» нельзя: у не начавшегося
+	// периода номер нулевой. Браузерная дата тоже не годится — она
+	// разойдётся с серверной в полночь.
+	Today openapi_types.Date `json:"today"`
 }
 
 // PointsRule За что начисляются поинты. `per_hour` допустимо только при

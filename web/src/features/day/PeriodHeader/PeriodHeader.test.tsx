@@ -6,6 +6,7 @@ const period = {
   title: '100 дней до запуска',
   start: '2026-10-01',
   days: 100,
+  today: '2026-10-23',
   dayNumber: 23,
   daysLeft: 78,
 };

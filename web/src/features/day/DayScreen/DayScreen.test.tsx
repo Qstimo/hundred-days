@@ -12,11 +12,11 @@ vi.mock('@/api-client', () => ({
 function day(overrides: Partial<DayResponse> = {}): DayResponse {
   return {
     date: '2026-10-23',
-    today: '2026-10-23',
     period: {
       title: '100 дней до',
       start: '2026-10-01',
       days: 100,
+      today: '2026-10-23',
       dayNumber: 23,
       daysLeft: 78,
     },
@@ -97,7 +97,20 @@ describe('DayScreen', () => {
   // Отметить будущий день нельзя: сервер отвергает такую запись, и галочки
   // должны быть выключены, а не отправлять запрос в отказ.
   it('в будущем дне отметки выключены', () => {
-    renderScreen(day({ date: '2026-11-01', today: '2026-10-23' }), '2026-11-01');
+    renderScreen(
+      day({
+        date: '2026-11-01',
+        period: {
+          title: '100 дней до',
+          start: '2026-10-01',
+          days: 100,
+          today: '2026-10-23',
+          dayNumber: 23,
+          daysLeft: 78,
+        },
+      }),
+      '2026-11-01',
+    );
 
     expect(screen.getByRole('checkbox', { name: 'Занятие' })).toHaveAttribute(
       'aria-disabled',
