@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
 
 /**
  * Настройка Vitest.
@@ -26,8 +27,10 @@ export default defineConfig({
     exclude: ['node_modules/**', '.next/**'],
   },
   resolve: {
-    // import.meta.dirname, а не __dirname: второй доступен только в
-    // CommonJS, и Vite на него предупреждает.
-    alias: { '@': new URL('./src', import.meta.url).pathname },
+    // Путь собирается из import.meta.dirname, а не из URL.pathname: в пути
+    // этого проекта есть пробел и кириллица, и pathname отдал бы его
+    // процентно-закодированным — такого каталога на диске нет, и алиас
+    // молча перестал бы разрешаться.
+    alias: { '@': path.join(import.meta.dirname, 'src') },
   },
 });
