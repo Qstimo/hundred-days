@@ -342,6 +342,104 @@ components:
           type: array
           items: { $ref: '#/components/schemas/DaySkill' }
 
+    StatsDay:
+      type: object
+      required: [date, done, points]
+      properties:
+        date: { type: string, format: date }
+        done: { type: boolean }
+        hours: { type: number, nullable: true }
+        points: { type: number }
+
+    StatsTracker:
+      type: object
+      required: [trackerId, title, mode, weeklyTarget, days, totalDone,
+                 totalHours, totalPoints, completionRate, currentStreak,
+                 bestStreak, currentWeekDone]
+      properties:
+        trackerId: { type: integer, format: int64 }
+        title: { type: string }
+        mode: { $ref: '#/components/schemas/TrackerMode' }
+        weeklyTarget: { type: integer }
+        days:
+          type: array
+          description: |
+            По дню на каждый день отрезка, включая пустые: теплокарте нужны
+            и провалы, а пропуск дня сдвинул бы сетку.
+          items: { $ref: '#/components/schemas/StatsDay' }
+        totalDone: { type: integer }
+        totalHours: { type: number }
+        totalPoints: { type: number }
+        completionRate:
+          type: number
+          description: |
+            Доля выполненного от ожидаемого за отрезок. Единица — ровно по
+            плану, больше единицы — перевыполнение, и оно не обрезается.
+        currentStreak:
+          type: integer
+          description: |
+            Недель подряд с взятой целью. Текущая незакончившаяся неделя
+            серию не рвёт, но уже зачтённая — продолжает.
+        bestStreak: { type: integer }
+        currentWeekDone: { type: integer }
+
+    StatsSkill:
+      type: object
+      required: [skillId, title, unitLabel, targetPoints, earnedPoints,
+                 pacePerDay, forecast, willReach]
+      properties:
+        skillId: { type: integer, format: int64 }
+        title: { type: string }
+        unitLabel: { type: string }
+        targetPoints: { type: number }
+        earnedPoints: { type: number }
+        pacePerDay:
+          type: number
+          description: Поинтов в день по последним 14 дням.
+        forecast:
+          type: number
+          description: Сколько будет к концу периода, если темп сохранится.
+        willReach: { type: boolean }
+
+    StatsSleep:
+      type: object
+      required: [date]
+      properties:
+        date: { type: string, format: date }
+        wentToBedAt: { type: string, nullable: true }
+        wokeUpAt: { type: string, nullable: true }
+        durationMinutes: { type: integer, nullable: true }
+        quality: { type: integer, nullable: true }
+
+    StatsPlans:
+      type: object
+      required: [total, done, rate]
+      properties:
+        total: { type: integer }
+        done: { type: integer }
+        rate:
+          type: number
+          description: |
+            Доля закрытых планов за отрезок. Отдельная метрика: на поинты и
+            навыки планы не влияют.
+
+    StatsResponse:
+      type: object
+      required: [from, to, trackers, skills, sleep, plans]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        trackers:
+          type: array
+          items: { $ref: '#/components/schemas/StatsTracker' }
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/StatsSkill' }
+        sleep:
+          type: array
+          items: { $ref: '#/components/schemas/StatsSleep' }
+        plans: { $ref: '#/components/schemas/StatsPlans' }
+
     HealthResponse:
       type: object
       required: [status]
@@ -800,4 +898,34 @@ paths:
               schema: { $ref: '#/components/schemas/DayResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /stats:
+    get:
+      operationId: getStats
+      summary: Статистика за отрезок
+      description: |
+        Всё для дашборда одним ответом. Отрезок включает оба края.
+
+        Длина ограничена 400 днями: ответ отдаёт по дню на каждый трекер, и
+        пять лет превратились бы в мегабайты, которые всё равно не прочесть.
+
+        Серии считаются по всей истории, а не по отрезку: серия, начавшаяся
+        до его начала, иначе выглядела бы короче, чем она есть.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Статистика
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
