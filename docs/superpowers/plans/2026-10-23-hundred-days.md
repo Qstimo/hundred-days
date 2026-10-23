@@ -51,12 +51,12 @@ hundred-days/
   README.md                     команды разработки и развёртывания
   openapi/
     openapi.yaml                контракт — источник правды для обеих сторон
-    oapi-codegen.yaml           настройка генератора Go
   api/
     go.mod  go.sum
     tools.sh                    запуск goose, sqlc, oapi-codegen
     tools/go.mod                модуль инструментов: их зависимости отдельно
     sqlc.yaml                   настройка sqlc
+    oapi-codegen.yaml           настройка генератора Go
     Dockerfile                  сборка api в статический бинарник
     cmd/
       api/main.go               запуск HTTP-сервера
@@ -896,7 +896,7 @@ jobs:
         working-directory: api
         run: |
           ./tools.sh sqlc generate
-          ./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+          ./tools.sh oapi-codegen -config oapi-codegen.yaml ../openapi/openapi.yaml
           git diff --exit-code || {
             echo 'Сгенерированный код разошёлся: перегенерируй и закоммить'
             exit 1
@@ -1890,22 +1890,36 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
 ```
 
-`openapi/oapi-codegen.yaml`:
+`api/oapi-codegen.yaml` — настройка лежит рядом с кодом, который порождает:
+`tools.sh` запускает инструменты из каталога `api`, и пути отсчитываются
+оттуда.
 
 ```yaml
 package: gen
-output: ../api/internal/httpapi/gen/server.gen.go
+output: internal/httpapi/gen/server.gen.go
 generate:
+  # Модели и интерфейс сервера, но не маршрутизатор со строгими ответами.
   chi-server: true
-  strict-server: true
   models: true
-  embedded-spec: true
-output-options:
-  # Строгий сервер: хендлер принимает разобранный запрос и возвращает
-  # типизированный ответ. Забыть поле или вернуть не тот код нельзя —
-  # не скомпилируется.
-  user-templates: {}
+  embedded-spec: false
 ```
+
+**Почему не `strict-server`.** Строгий сервер раздаёт маршруты сам, и
+границу «открыто / под сессией» пришлось бы ставить посредником,
+разбирающим путь запроса. Для границы аутентификации это плохой приём:
+ошибка в сравнении пути открывает наружу всё. Маршруты пишутся руками, с
+явной группой под `requireSession`, а соответствие спецификации даёт строка
+
+```go
+// Сервер обязан покрывать весь контракт: новая операция в спецификации
+// ломает сборку, пока у неё нет хендлера.
+var _ gen.ServerInterface = (*Server)(nil)
+```
+
+Обещание при этом сужается с «подписи операций» до «подписи и типы» —
+расхождение в именах полей и в их типах сборка поймает, а вот вернуть 200
+там, где спецификация обещает 204, компилятор уже не помешает. Это цена
+явной границы доступа.
 
 `api/sqlc.yaml`:
 
@@ -1937,7 +1951,7 @@ sql:
 ```bash
 cd api
 mkdir -p internal/httpapi/gen internal/db/queries internal/db/gen
-./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+./tools.sh oapi-codegen -config oapi-codegen.yaml ../openapi/openapi.yaml
 go build ./...
 ```
 
@@ -2027,8 +2041,11 @@ func TestEveryOwnedQueryFiltersByUser(t *testing.T) {
 				continue
 			}
 
-			require.Contains(t, lower, "user_id",
-				"запрос %s в %s трогает данные пользователя, но не фильтрует по user_id",
+			// Проверять одно вхождение слова «user_id» нельзя: запрос
+			// `SELECT user_id FROM settings` его содержит, а пользователем
+			// не ограничен вовсе. Нужно именно сравнение с параметром.
+			require.True(t, filtersByUser(lower),
+				"запрос %s в %s трогает данные пользователя, но не ограничен им",
 				name, f.Name())
 		}
 	}
@@ -2129,9 +2146,29 @@ go test ./internal/db/ -v
 ```
 Ожидается: PASS.
 
-Проверь страж нарочно: добавь в `settings.sql` запрос
-`-- name: BadSettings :many` без `WHERE user_id`, прогони тест — должен упасть
-с понятным сообщением. Затем удали его.
+**Проверь страж нарочно**, иначе он может давать ложную уверенность. Добавь
+в `settings.sql` по очереди три негодных запроса и убедись, что каждый из
+первых двух ловится:
+
+```sql
+-- name: BadOnPurpose :many
+SELECT user_id, period_title FROM settings;                          -- ловится
+UPDATE settings SET period_days = $2 WHERE period_title = $1;        -- ловится
+SELECT period_title FROM settings
+WHERE period_days > (SELECT period_days FROM settings
+                     WHERE user_id = $1);                            -- НЕ ловится
+```
+
+Третий случай страж пропускает: сравнение стоит только в подзапросе, а
+внешняя выборка открыта. Снять скобки перед проверкой можно, но тогда ложно
+отвергались бы законные `SELECT EXISTS (SELECT 1 FROM ... WHERE user_id =
+$1)`, нужные в чанках 4 и 5. Граница выбрана по тому, какая ошибка бывает
+на самом деле: фильтр забывают целиком. Опиши это в комментарии к
+`filtersByUser`, чтобы следующий читатель знал, на что страж не отвечает.
+
+Реализуй `filtersByUser` так: у вставки — `user_id` среди колонок, у
+остального — сравнение `user_id = $N` или `user_id = sqlc.arg(...)` после
+первого `WHERE`.
 
 - [ ] **Шаг 5: Подключение pgx**
 
@@ -3466,7 +3503,7 @@ docker compose exec -e HD_DATABASE_URL=... api /cli create-user \
 
 ```bash
 cd api && ./tools.sh sqlc generate && \
-  ./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml && \
+  ./tools.sh oapi-codegen -config oapi-codegen.yaml ../openapi/openapi.yaml && \
   git diff --exit-code
 ```
 
@@ -4597,7 +4634,7 @@ git add -A && git commit -m "Считать статистику за отрез
 ```bash
 cd api
 ./tools.sh sqlc generate
-./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
+./tools.sh oapi-codegen -config oapi-codegen.yaml ../openapi/openapi.yaml
 git diff --exit-code
 ```
 

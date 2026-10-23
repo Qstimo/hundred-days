@@ -19,16 +19,15 @@ jobs:
 
       # Сгенерированный код коммитится, а CI следит, чтобы он не разошёлся с
       # источником: иначе расхождение спецификации и кода обнаружилось бы
-      # только в рантайме. Шаг включается в чанке 3, когда появятся
-      # sqlc.yaml и openapi.yaml.
-      # - name: Сгенерированное не разошлось с источником
-      #   working-directory: api
-      #   run: |
-      #     ./tools.sh sqlc generate
-      #     ./tools.sh oapi-codegen -config ../openapi/oapi-codegen.yaml ../openapi/openapi.yaml
-      #     git diff --exit-code || {
-      #       echo 'Сгенерированный код разошёлся: перегенерируй и закоммить'
-      #       exit 1
-      #     }
+      # только в рантайме.
+      - name: Сгенерированное не разошлось с источником
+        working-directory: api
+        run: |
+          ./tools.sh sqlc generate
+          ./tools.sh oapi-codegen -config oapi-codegen.yaml ../openapi/openapi.yaml
+          git diff --exit-code || {
+            echo 'Сгенерированный код разошёлся: перегенерируй и закоммить'
+            exit 1
+          }
 
   # Задание web включается в чанке 7, когда появится веб-приложение.
