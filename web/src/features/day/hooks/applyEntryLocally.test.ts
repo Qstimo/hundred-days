@@ -5,6 +5,7 @@ import type { DayResponse } from './types';
 function dayWith(entry: DayResponse['trackers'][number]['entry']): DayResponse {
   return {
     date: '2026-10-23',
+    today: '2026-10-23',
     period: {
       title: '100 дней до',
       start: '2026-10-01',

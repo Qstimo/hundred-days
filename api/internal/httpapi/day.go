@@ -56,7 +56,11 @@ func (s *Server) GetDay(w http.ResponseWriter, r *http.Request, params gen.GetDa
 	}
 
 	out := gen.DayResponse{
-		Date:               openapi_types.Date{Time: day.Date},
+		Date: openapi_types.Date{Time: day.Date},
+		// Сегодня по зоне сервера: клиенту нужно знать, открыт прошлый
+		// день, сегодняшний или будущий, а вывести это из периода нельзя —
+		// у не начавшегося номер дня нулевой.
+		Today:              openapi_types.Date{Time: s.Today()},
 		Period:             s.buildPeriod(day.Settings),
 		SleepEnabled:       day.Settings.SleepEnabled,
 		Trackers:           trackers,
