@@ -2041,8 +2041,11 @@ func TestEveryOwnedQueryFiltersByUser(t *testing.T) {
 				continue
 			}
 
-			require.Contains(t, lower, "user_id",
-				"запрос %s в %s трогает данные пользователя, но не фильтрует по user_id",
+			// Проверять одно вхождение слова «user_id» нельзя: запрос
+			// `SELECT user_id FROM settings` его содержит, а пользователем
+			// не ограничен вовсе. Нужно именно сравнение с параметром.
+			require.True(t, filtersByUser(lower),
+				"запрос %s в %s трогает данные пользователя, но не ограничен им",
 				name, f.Name())
 		}
 	}
@@ -2143,9 +2146,29 @@ go test ./internal/db/ -v
 ```
 Ожидается: PASS.
 
-Проверь страж нарочно: добавь в `settings.sql` запрос
-`-- name: BadSettings :many` без `WHERE user_id`, прогони тест — должен упасть
-с понятным сообщением. Затем удали его.
+**Проверь страж нарочно**, иначе он может давать ложную уверенность. Добавь
+в `settings.sql` по очереди три негодных запроса и убедись, что каждый из
+первых двух ловится:
+
+```sql
+-- name: BadOnPurpose :many
+SELECT user_id, period_title FROM settings;                          -- ловится
+UPDATE settings SET period_days = $2 WHERE period_title = $1;        -- ловится
+SELECT period_title FROM settings
+WHERE period_days > (SELECT period_days FROM settings
+                     WHERE user_id = $1);                            -- НЕ ловится
+```
+
+Третий случай страж пропускает: сравнение стоит только в подзапросе, а
+внешняя выборка открыта. Снять скобки перед проверкой можно, но тогда ложно
+отвергались бы законные `SELECT EXISTS (SELECT 1 FROM ... WHERE user_id =
+$1)`, нужные в чанках 4 и 5. Граница выбрана по тому, какая ошибка бывает
+на самом деле: фильтр забывают целиком. Опиши это в комментарии к
+`filtersByUser`, чтобы следующий читатель знал, на что страж не отвечает.
+
+Реализуй `filtersByUser` так: у вставки — `user_id` среди колонок, у
+остального — сравнение `user_id = $N` или `user_id = sqlc.arg(...)` после
+первого `WHERE`.
 
 - [ ] **Шаг 5: Подключение pgx**
 

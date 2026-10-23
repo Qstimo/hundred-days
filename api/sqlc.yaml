@@ -13,3 +13,25 @@ sql:
         # бы разворачивать в каждом хендлере.
         emit_pointers_for_null_types: true
         emit_json_tags: false
+        overrides:
+          # Даты и метки — обычным time.Time. По умолчанию sqlc даёт
+          # pgtype.Date и pgtype.Timestamptz, и их пришлось бы разворачивать
+          # на каждом шагу, а вычисления в domain принимают time.Time.
+          - db_type: date
+            go_type: time.Time
+          - db_type: date
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              type: time.Time
+              pointer: true
+        # Время суток (колонки went_to_bed_at и woke_up_at) оставлено
+        # pgtype.Time нарочно: оно хранит микросекунды от полуночи, и это
+        # ровно то представление, с которым считается переход через полночь.
+        # У time.Time пришлось бы выдумывать дату.
