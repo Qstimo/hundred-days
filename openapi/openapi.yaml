@@ -201,6 +201,49 @@ components:
           minimum: 0
           maximum: 24
 
+    Sleep:
+      type: object
+      required: [date]
+      properties:
+        date: { type: string, format: date }
+        wentToBedAt:
+          type: string
+          nullable: true
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Время суток «ЧЧ:ММ». Во сколько лёг.
+        wokeUpAt:
+          type: string
+          nullable: true
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: Время суток «ЧЧ:ММ». Во сколько встал.
+        quality:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: Самооценка сна.
+        durationMinutes:
+          type: integer
+          nullable: true
+          readOnly: true
+          description: |
+            Длительность в минутах. Вычисляется, не хранится. Переход через
+            полночь учтён: лёг в 23:40, встал в 7:10 — 450 минут. Пусто,
+            если заполнено только одно из двух времён.
+
+    SleepInput:
+      type: object
+      properties:
+        wentToBedAt:
+          type: string
+          nullable: true
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        wokeUpAt:
+          type: string
+          nullable: true
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+        quality: { type: integer, nullable: true, minimum: 1, maximum: 5 }
+
     HealthResponse:
       type: object
       required: [status]
@@ -522,5 +565,39 @@ paths:
       summary: Снять отметку
       responses:
         '204': { description: Снята }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /sleep/{date}:
+    parameters:
+      - name: date
+        in: path
+        required: true
+        schema: { type: string, format: date }
+        description: Дата подъёма — день, к которому относится сон.
+    put:
+      operationId: putSleep
+      summary: Записать сон
+      description: |
+        Все три значения необязательны: заполнить только время подъёма —
+        нормально. Длительность считается сервером, присылать её не нужно.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SleepInput' }
+      responses:
+        '200':
+          description: Записано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sleep' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      operationId: deleteSleep
+      summary: Убрать запись сна
+      responses:
+        '204': { description: Убрана }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }

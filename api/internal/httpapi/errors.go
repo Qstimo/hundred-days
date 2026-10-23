@@ -55,6 +55,9 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrHoursOutOfRange):
 		writeError(w, http.StatusUnprocessableEntity,
 			"часы должны быть больше нуля и не больше 24", "hours")
+	case errors.Is(err, store.ErrQualityOutOfRange):
+		writeError(w, http.StatusUnprocessableEntity,
+			"оценка сна должна быть от 1 до 5", "quality")
 	default:
 		writeError(w, http.StatusInternalServerError, "внутренняя ошибка", "")
 	}

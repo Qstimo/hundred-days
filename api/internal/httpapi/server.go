@@ -71,6 +71,9 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 
 			r.Put("/trackers/{id}/entries/{date}", withIDAndDate(s.PutEntry))
 			r.Delete("/trackers/{id}/entries/{date}", withIDAndDate(s.DeleteEntry))
+
+			r.Put("/sleep/{date}", withDate(s.PutSleep))
+			r.Delete("/sleep/{date}", withDate(s.DeleteSleep))
 			// Остальные маршруты добавляются в чанках 4–6.
 		})
 	})

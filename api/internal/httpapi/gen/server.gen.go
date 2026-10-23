@@ -151,6 +151,32 @@ type SkillInput struct {
 	UnitLabel    *string `json:"unitLabel,omitempty"`
 }
 
+// Sleep defines model for Sleep.
+type Sleep struct {
+	Date openapi_types.Date `json:"date"`
+
+	// DurationMinutes Длительность в минутах. Вычисляется, не хранится. Переход через
+	// полночь учтён: лёг в 23:40, встал в 7:10 — 450 минут. Пусто,
+	// если заполнено только одно из двух времён.
+	DurationMinutes *int `json:"durationMinutes,omitempty"`
+
+	// Quality Самооценка сна.
+	Quality *int `json:"quality,omitempty"`
+
+	// WentToBedAt Время суток «ЧЧ:ММ». Во сколько лёг.
+	WentToBedAt *string `json:"wentToBedAt,omitempty"`
+
+	// WokeUpAt Время суток «ЧЧ:ММ». Во сколько встал.
+	WokeUpAt *string `json:"wokeUpAt,omitempty"`
+}
+
+// SleepInput defines model for SleepInput.
+type SleepInput struct {
+	Quality     *int    `json:"quality,omitempty"`
+	WentToBedAt *string `json:"wentToBedAt,omitempty"`
+	WokeUpAt    *string `json:"wokeUpAt,omitempty"`
+}
+
 // Tracker defines model for Tracker.
 type Tracker struct {
 	Archived bool `json:"archived"`
@@ -245,6 +271,9 @@ type CreateSkillJSONRequestBody = SkillInput
 // UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
 type UpdateSkillJSONRequestBody = SkillInput
 
+// PutSleepJSONRequestBody defines body for PutSleep for application/json ContentType.
+type PutSleepJSONRequestBody = SleepInput
+
 // CreateTrackerJSONRequestBody defines body for CreateTracker for application/json ContentType.
 type CreateTrackerJSONRequestBody = TrackerInput
 
@@ -286,6 +315,12 @@ type ServerInterface interface {
 	// UpdateSkill Правка навыка
 	// (PUT /skills/{id})
 	UpdateSkill(w http.ResponseWriter, r *http.Request, id int64)
+	// DeleteSleep Убрать запись сна
+	// (DELETE /sleep/{date})
+	DeleteSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date)
+	// PutSleep Записать сон
+	// (PUT /sleep/{date})
+	PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date)
 	// ListTrackers Трекеры
 	// (GET /trackers)
 	ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams)
@@ -367,6 +402,18 @@ func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, id in
 // UpdateSkill Правка навыка
 // (PUT /skills/{id})
 func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteSleep Убрать запись сна
+// (DELETE /sleep/{date})
+func (_ Unimplemented) DeleteSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PutSleep Записать сон
+// (PUT /sleep/{date})
+func (_ Unimplemented) PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -589,6 +636,58 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateSkill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSleep operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSleep(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSleep(w, r, date)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSleep operation middleware
+func (siw *ServerInterfaceWrapper) PutSleep(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "date" -------------
+	var date openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "date", chi.URLParam(r, "date"), &date, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "date", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSleep(w, r, date)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -927,6 +1026,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/trackers/{id}/entries/{date}", wrapper.PutEntry)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/sleep/{date}", wrapper.DeleteSleep)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/sleep/{date}", wrapper.PutSleep)
 	})
 
 	return r
