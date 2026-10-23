@@ -13,6 +13,42 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for PointsRule.
+const (
+	PerCheck PointsRule = "per_check"
+	PerHour  PointsRule = "per_hour"
+)
+
+// Valid indicates whether the value is a known member of the PointsRule enum.
+func (e PointsRule) Valid() bool {
+	switch e {
+	case PerCheck:
+		return true
+	case PerHour:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrackerMode.
+const (
+	Check      TrackerMode = "check"
+	CheckHours TrackerMode = "check_hours"
+)
+
+// Valid indicates whether the value is a known member of the TrackerMode enum.
+func (e TrackerMode) Valid() bool {
+	switch e {
+	case Check:
+		return true
+	case CheckHours:
+		return true
+	default:
+		return false
+	}
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Машинный повод отказа. Интерфейсу нужен не текст, а основание
@@ -46,6 +82,12 @@ type Period struct {
 	Start    openapi_types.Date `json:"start"`
 	Title    string             `json:"title"`
 }
+
+// PointsRule За что начисляются поинты. `per_hour` допустимо только при
+// `mode: check_hours` — у трекера без часов правило давало бы ноль при
+// каждом выполнении. Негодное сочетание отвергается кодом 409 с
+// поводом `rule_needs_hours`.
+type PointsRule string
 
 // Settings defines model for Settings.
 type Settings struct {
@@ -89,12 +131,67 @@ type SkillInput struct {
 	UnitLabel    *string `json:"unitLabel,omitempty"`
 }
 
+// Tracker defines model for Tracker.
+type Tracker struct {
+	Archived bool `json:"archived"`
+
+	// EntryCount Сколько отметок накоплено. Нужно, чтобы удаление могло сказать,
+	// сколько истории унесёт.
+	EntryCount int   `json:"entryCount"`
+	Id         int64 `json:"id"`
+
+	// Mode `check` — только галочка. `check_hours` — галочка и часы.
+	Mode TrackerMode `json:"mode"`
+
+	// PointsRule За что начисляются поинты. `per_hour` допустимо только при
+	// `mode: check_hours` — у трекера без часов правило давало бы ноль при
+	// каждом выполнении. Негодное сочетание отвергается кодом 409 с
+	// поводом `rule_needs_hours`.
+	PointsRule PointsRule `json:"pointsRule"`
+
+	// PointsValue Сколько поинтов даёт выполнение или час.
+	PointsValue float32 `json:"pointsValue"`
+
+	// SkillId Навык, который трекер питает. Необязателен.
+	SkillId   *int64 `json:"skillId,omitempty"`
+	SortOrder int    `json:"sortOrder"`
+	Title     string `json:"title"`
+
+	// WeeklyTarget Сколько раз в неделю. По нему считается серия.
+	WeeklyTarget int `json:"weeklyTarget"`
+}
+
+// TrackerInput defines model for TrackerInput.
+type TrackerInput struct {
+	Archived *bool `json:"archived,omitempty"`
+
+	// Mode `check` — только галочка. `check_hours` — галочка и часы.
+	Mode TrackerMode `json:"mode"`
+
+	// PointsRule За что начисляются поинты. `per_hour` допустимо только при
+	// `mode: check_hours` — у трекера без часов правило давало бы ноль при
+	// каждом выполнении. Негодное сочетание отвергается кодом 409 с
+	// поводом `rule_needs_hours`.
+	PointsRule   PointsRule `json:"pointsRule"`
+	PointsValue  float32    `json:"pointsValue"`
+	SkillId      *int64     `json:"skillId,omitempty"`
+	SortOrder    *int       `json:"sortOrder,omitempty"`
+	Title        string     `json:"title"`
+	WeeklyTarget int        `json:"weeklyTarget"`
+}
+
+// TrackerMode `check` — только галочка. `check_hours` — галочка и часы.
+type TrackerMode string
+
 // User defines model for User.
 type User struct {
 	Id    int64  `json:"id"`
 	Login string `json:"login"`
 	Name  string `json:"name"`
 }
+
+// Conflict defines model for Conflict.
+type Conflict = Error
 
 // NotFound defines model for NotFound.
 type NotFound = Error
@@ -111,6 +208,11 @@ type ListSkillsParams struct {
 	IncludeArchived *bool `form:"includeArchived,omitempty" json:"includeArchived,omitempty"`
 }
 
+// ListTrackersParams defines parameters for ListTrackers.
+type ListTrackersParams struct {
+	IncludeArchived *bool `form:"includeArchived,omitempty" json:"includeArchived,omitempty"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -122,6 +224,12 @@ type CreateSkillJSONRequestBody = SkillInput
 
 // UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
 type UpdateSkillJSONRequestBody = SkillInput
+
+// CreateTrackerJSONRequestBody defines body for CreateTracker for application/json ContentType.
+type CreateTrackerJSONRequestBody = TrackerInput
+
+// UpdateTrackerJSONRequestBody defines body for UpdateTracker for application/json ContentType.
+type UpdateTrackerJSONRequestBody = TrackerInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -155,6 +263,18 @@ type ServerInterface interface {
 	// UpdateSkill Правка навыка
 	// (PUT /skills/{id})
 	UpdateSkill(w http.ResponseWriter, r *http.Request, id int64)
+	// ListTrackers Трекеры
+	// (GET /trackers)
+	ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams)
+	// CreateTracker Завести трекер
+	// (POST /trackers)
+	CreateTracker(w http.ResponseWriter, r *http.Request)
+	// DeleteTracker Удалить трекер
+	// (DELETE /trackers/{id})
+	DeleteTracker(w http.ResponseWriter, r *http.Request, id int64)
+	// UpdateTracker Правка трекера
+	// (PUT /trackers/{id})
+	UpdateTracker(w http.ResponseWriter, r *http.Request, id int64)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -218,6 +338,30 @@ func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, id in
 // UpdateSkill Правка навыка
 // (PUT /skills/{id})
 func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListTrackers Трекеры
+// (GET /trackers)
+func (_ Unimplemented) ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateTracker Завести трекер
+// (POST /trackers)
+func (_ Unimplemented) CreateTracker(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteTracker Удалить трекер
+// (DELETE /trackers/{id})
+func (_ Unimplemented) DeleteTracker(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateTracker Правка трекера
+// (PUT /trackers/{id})
+func (_ Unimplemented) UpdateTracker(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -413,6 +557,105 @@ func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListTrackers operation middleware
+func (siw *ServerInterfaceWrapper) ListTrackers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTrackersParams
+
+	// ------------- Optional query parameter "includeArchived" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "includeArchived", r.URL.Query(), &params.IncludeArchived, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "includeArchived"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "includeArchived", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTrackers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTracker operation middleware
+func (siw *ServerInterfaceWrapper) CreateTracker(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTracker(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTracker operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTracker(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTracker(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTracker operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTracker(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTracker(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -555,6 +798,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/skills/{id}", wrapper.UpdateSkill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/trackers", wrapper.ListTrackers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/trackers", wrapper.CreateTracker)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/trackers/{id}", wrapper.DeleteTracker)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/trackers/{id}", wrapper.UpdateTracker)
 	})
 
 	return r

@@ -111,6 +111,65 @@ components:
         sortOrder: { type: integer }
         archived: { type: boolean }
 
+    TrackerMode:
+      type: string
+      enum: [check, check_hours]
+      description: |
+        `check` — только галочка. `check_hours` — галочка и часы.
+
+    PointsRule:
+      type: string
+      enum: [per_check, per_hour]
+      description: |
+        За что начисляются поинты. `per_hour` допустимо только при
+        `mode: check_hours` — у трекера без часов правило давало бы ноль при
+        каждом выполнении. Негодное сочетание отвергается кодом 409 с
+        поводом `rule_needs_hours`.
+
+    Tracker:
+      type: object
+      required: [id, title, mode, pointsRule, pointsValue, weeklyTarget,
+                 sortOrder, archived, entryCount]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        mode: { $ref: '#/components/schemas/TrackerMode' }
+        pointsRule: { $ref: '#/components/schemas/PointsRule' }
+        pointsValue:
+          type: number
+          minimum: 0
+          description: Сколько поинтов даёт выполнение или час.
+        skillId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Навык, который трекер питает. Необязателен.
+        weeklyTarget:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: Сколько раз в неделю. По нему считается серия.
+        sortOrder: { type: integer }
+        archived: { type: boolean }
+        entryCount:
+          type: integer
+          description: |
+            Сколько отметок накоплено. Нужно, чтобы удаление могло сказать,
+            сколько истории унесёт.
+
+    TrackerInput:
+      type: object
+      required: [title, mode, pointsRule, pointsValue, weeklyTarget]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        mode: { $ref: '#/components/schemas/TrackerMode' }
+        pointsRule: { $ref: '#/components/schemas/PointsRule' }
+        pointsValue: { type: number, minimum: 0 }
+        skillId: { type: integer, format: int64, nullable: true }
+        weeklyTarget: { type: integer, minimum: 1, maximum: 7 }
+        sortOrder: { type: integer }
+        archived: { type: boolean }
+
     HealthResponse:
       type: object
       required: [status]
@@ -304,6 +363,88 @@ paths:
         Записи не удаляются: трекеры теряют ссылку на навык, а накопленные
         поинты остаются в записях. Это не недосмотр — поинты зафиксированы
         в момент выполнения, и удаление цели не отменяет сделанной работы.
+      responses:
+        '204': { description: Удалён }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /trackers:
+    get:
+      operationId: listTrackers
+      summary: Трекеры
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Список трекеров
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tracker' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createTracker
+      summary: Завести трекер
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrackerInput' }
+      responses:
+        '201':
+          description: Создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tracker' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            Указан навык, которого нет или который принадлежит другому.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /trackers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    put:
+      operationId: updateTracker
+      summary: Правка трекера
+      description: |
+        Инвариант сочетания режима и правила проверяется так же, как при
+        создании: сменить режим на «без часов», оставив правило «за час»,
+        нельзя.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrackerInput' }
+      responses:
+        '200':
+          description: Сохранён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tracker' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      operationId: deleteTracker
+      summary: Удалить трекер
+      description: |
+        Уносит все его отметки: они принадлежат трекеру и без него значения
+        не имеют. Сколько именно — говорит поле `entryCount` в списке, чтобы
+        интерфейс мог предупредить до удаления.
       responses:
         '204': { description: Удалён }
         '401': { $ref: '#/components/responses/Unauthorized' }

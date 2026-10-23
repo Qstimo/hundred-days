@@ -37,6 +37,18 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrTargetNotPositive):
 		writeError(w, http.StatusUnprocessableEntity,
 			"цель должна быть больше нуля", "target_points")
+	case errors.Is(err, store.ErrWeeklyTargetOutOfRange):
+		writeError(w, http.StatusUnprocessableEntity,
+			"недельная цель должна быть от 1 до 7", "weekly_target")
+	case errors.Is(err, store.ErrPointsValueNegative):
+		writeError(w, http.StatusUnprocessableEntity,
+			"цена выполнения не может быть отрицательной", "points_value")
+	case errors.Is(err, store.ErrUnknownMode):
+		writeError(w, http.StatusUnprocessableEntity,
+			"неизвестный режим трекера", "mode")
+	case errors.Is(err, store.ErrUnknownRule):
+		writeError(w, http.StatusUnprocessableEntity,
+			"неизвестное правило начисления", "points_rule")
 	default:
 		writeError(w, http.StatusInternalServerError, "внутренняя ошибка", "")
 	}
