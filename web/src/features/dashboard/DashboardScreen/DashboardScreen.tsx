@@ -5,18 +5,12 @@ import { ChartCard } from '@/components/ChartCard';
 import { HoursChart } from '../HoursChart';
 import { RangePicker } from '../RangePicker';
 import { SkillMeters } from '../SkillMeters';
-import { SleepChart } from '../SleepChart';
-import { SleepDurationChart } from '../SleepDurationChart';
 import { StatTiles } from '../StatTiles';
 import { TrackerHeatmap } from '../TrackerHeatmap';
 import { useQueryStats } from '../hooks';
-import {
-  HeatmapTable,
-  HoursTable,
-  SkillsTable,
-  SleepTable,
-  StreaksTable,
-} from './tables';
+import { SleepSection } from './SleepSection';
+import { StreaksSection } from './StreaksSection';
+import { HeatmapTable, HoursTable, SkillsTable } from './tables';
 import type { IProps } from './types';
 
 /**
@@ -52,20 +46,7 @@ export function DashboardScreen({ initialStats, preset, from, to }: IProps) {
 
       <StatTiles stats={stats} rangeDays={rangeDays} />
 
-      {/* Таблицей, а не графиком: это не величина и не ряд, а несколько
-          чисел на трекер. Переключателя «график / таблица» здесь нет —
-          менять таблицу на таблицу незачем. */}
-      <section className="flex flex-col gap-3 rounded-lg border p-4">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="font-semibold">Серии и выполнение</h2>
-          <p className="text-xs text-muted-foreground">
-            серия считается по неделям: цель недельная
-          </p>
-        </div>
-        <div className={isFetching ? 'opacity-60 transition-opacity' : undefined}>
-          <StreaksTable trackers={stats.trackers} />
-        </div>
-      </section>
+      <StreaksSection trackers={stats.trackers} isRefreshing={isFetching} />
 
       {stats.trackers.map((tracker) => (
         <ChartCard
@@ -97,23 +78,7 @@ export function DashboardScreen({ initialStats, preset, from, to }: IProps) {
         <HoursChart trackers={stats.trackers} />
       </ChartCard>
 
-      <ChartCard
-        title="Когда лёг и когда встал"
-        hint="ось считается от полудня, чтобы ночь шла непрерывно"
-        isRefreshing={isFetching}
-        table={<SleepTable sleep={stats.sleep} />}
-      >
-        <SleepChart sleep={stats.sleep} />
-      </ChartCard>
-
-      <ChartCard
-        title="Сколько спал"
-        hint="отдельным графиком: у часов своя шкала"
-        isRefreshing={isFetching}
-        table={<SleepTable sleep={stats.sleep} />}
-      >
-        <SleepDurationChart sleep={stats.sleep} />
-      </ChartCard>
+      <SleepSection sleep={stats.sleep} isRefreshing={isFetching} />
     </main>
   );
 }
