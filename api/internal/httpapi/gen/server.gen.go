@@ -249,6 +249,86 @@ type SleepInput struct {
 	WokeUpAt    *string `json:"wokeUpAt,omitempty"`
 }
 
+// StatsDay defines model for StatsDay.
+type StatsDay struct {
+	Date   openapi_types.Date `json:"date"`
+	Done   bool               `json:"done"`
+	Hours  *float32           `json:"hours,omitempty"`
+	Points float32            `json:"points"`
+}
+
+// StatsPlans defines model for StatsPlans.
+type StatsPlans struct {
+	Done int `json:"done"`
+
+	// Rate Доля закрытых планов за отрезок. Отдельная метрика: на поинты и
+	// навыки планы не влияют.
+	Rate  float32 `json:"rate"`
+	Total int     `json:"total"`
+}
+
+// StatsResponse defines model for StatsResponse.
+type StatsResponse struct {
+	From     openapi_types.Date `json:"from"`
+	Plans    StatsPlans         `json:"plans"`
+	Skills   []StatsSkill       `json:"skills"`
+	Sleep    []StatsSleep       `json:"sleep"`
+	To       openapi_types.Date `json:"to"`
+	Trackers []StatsTracker     `json:"trackers"`
+}
+
+// StatsSkill defines model for StatsSkill.
+type StatsSkill struct {
+	EarnedPoints float32 `json:"earnedPoints"`
+
+	// Forecast Сколько будет к концу периода, если темп сохранится.
+	Forecast float32 `json:"forecast"`
+
+	// PacePerDay Поинтов в день по последним 14 дням.
+	PacePerDay   float32 `json:"pacePerDay"`
+	SkillId      int64   `json:"skillId"`
+	TargetPoints float32 `json:"targetPoints"`
+	Title        string  `json:"title"`
+	UnitLabel    string  `json:"unitLabel"`
+	WillReach    bool    `json:"willReach"`
+}
+
+// StatsSleep defines model for StatsSleep.
+type StatsSleep struct {
+	Date            openapi_types.Date `json:"date"`
+	DurationMinutes *int               `json:"durationMinutes,omitempty"`
+	Quality         *int               `json:"quality,omitempty"`
+	WentToBedAt     *string            `json:"wentToBedAt,omitempty"`
+	WokeUpAt        *string            `json:"wokeUpAt,omitempty"`
+}
+
+// StatsTracker defines model for StatsTracker.
+type StatsTracker struct {
+	BestStreak int `json:"bestStreak"`
+
+	// CompletionRate Доля выполненного от ожидаемого за отрезок. Единица — ровно по
+	// плану, больше единицы — перевыполнение, и оно не обрезается.
+	CompletionRate float32 `json:"completionRate"`
+
+	// CurrentStreak Недель подряд с взятой целью. Текущая незакончившаяся неделя
+	// серию не рвёт, но уже зачтённая — продолжает.
+	CurrentStreak   int `json:"currentStreak"`
+	CurrentWeekDone int `json:"currentWeekDone"`
+
+	// Days По дню на каждый день отрезка, включая пустые: теплокарте нужны
+	// и провалы, а пропуск дня сдвинул бы сетку.
+	Days []StatsDay `json:"days"`
+
+	// Mode `check` — только галочка. `check_hours` — галочка и часы.
+	Mode         TrackerMode `json:"mode"`
+	Title        string      `json:"title"`
+	TotalDone    int         `json:"totalDone"`
+	TotalHours   float32     `json:"totalHours"`
+	TotalPoints  float32     `json:"totalPoints"`
+	TrackerId    int64       `json:"trackerId"`
+	WeeklyTarget int         `json:"weeklyTarget"`
+}
+
 // Tracker defines model for Tracker.
 type Tracker struct {
 	Archived bool `json:"archived"`
@@ -329,6 +409,12 @@ type GetDayParams struct {
 type ListSkillsParams struct {
 	// IncludeArchived Включить архивные.
 	IncludeArchived *bool `form:"includeArchived,omitempty" json:"includeArchived,omitempty"`
+}
+
+// GetStatsParams defines parameters for GetStats.
+type GetStatsParams struct {
+	From openapi_types.Date `form:"from" json:"from"`
+	To   openapi_types.Date `form:"to" json:"to"`
 }
 
 // ListTrackersParams defines parameters for ListTrackers.
@@ -422,6 +508,9 @@ type ServerInterface interface {
 	// PutSleep Записать сон
 	// (PUT /sleep/{date})
 	PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date)
+	// GetStats Статистика за отрезок
+	// (GET /stats)
+	GetStats(w http.ResponseWriter, r *http.Request, params GetStatsParams)
 	// ListTrackers Трекеры
 	// (GET /trackers)
 	ListTrackers(w http.ResponseWriter, r *http.Request, params ListTrackersParams)
@@ -545,6 +634,12 @@ func (_ Unimplemented) DeleteSleep(w http.ResponseWriter, r *http.Request, date 
 // PutSleep Записать сон
 // (PUT /sleep/{date})
 func (_ Unimplemented) PutSleep(w http.ResponseWriter, r *http.Request, date openapi_types.Date) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetStats Статистика за отрезок
+// (GET /stats)
+func (_ Unimplemented) GetStats(w http.ResponseWriter, r *http.Request, params GetStatsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -941,6 +1036,52 @@ func (siw *ServerInterfaceWrapper) PutSleep(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// GetStats operation middleware
+func (siw *ServerInterfaceWrapper) GetStats(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStatsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStats(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTrackers operation middleware
 func (siw *ServerInterfaceWrapper) ListTrackers(w http.ResponseWriter, r *http.Request) {
 
@@ -1291,6 +1432,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/day", wrapper.GetDay)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/stats", wrapper.GetStats)
 	})
 
 	return r

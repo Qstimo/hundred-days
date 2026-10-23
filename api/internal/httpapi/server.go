@@ -89,6 +89,14 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 			r.Post("/day-plans/carry-over", s.CarryOverDayPlans)
 			r.Patch("/day-plans/{id}", withID(s.PatchDayPlan))
 			r.Delete("/day-plans/{id}", withID(s.DeleteDayPlan))
+
+			r.Get("/stats", func(w http.ResponseWriter, r *http.Request) {
+				params, ok := statsParamsFrom(w, r)
+				if !ok {
+					return
+				}
+				s.GetStats(w, r, params)
+			})
 			// Остальные маршруты добавляются в чанках 4–6.
 		})
 	})
