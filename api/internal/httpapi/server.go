@@ -54,6 +54,13 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 			r.Get("/auth/me", s.GetMe)
 			r.Get("/settings", s.GetSettings)
 			r.Put("/settings", s.PutSettings)
+
+			r.Get("/skills", func(w http.ResponseWriter, r *http.Request) {
+				s.ListSkills(w, r, skillsParamsFrom(r))
+			})
+			r.Post("/skills", s.CreateSkill)
+			r.Put("/skills/{id}", withID(s.UpdateSkill))
+			r.Delete("/skills/{id}", withID(s.DeleteSkill))
 			// Остальные маршруты добавляются в чанках 4–6.
 		})
 	})

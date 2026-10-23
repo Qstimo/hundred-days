@@ -7,6 +7,7 @@ import (
 
 	"github.com/Qstimo/hundred-days/api/internal/domain"
 	"github.com/Qstimo/hundred-days/api/internal/httpapi/gen"
+	"github.com/Qstimo/hundred-days/api/internal/store"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -31,6 +32,11 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrRuleNeedsHours):
 		writeError(w, http.StatusConflict,
 			"правило «за час» требует режима с часами", "rule_needs_hours")
+	case errors.Is(err, store.ErrEmptyTitle):
+		writeError(w, http.StatusUnprocessableEntity, "название пустое", "title")
+	case errors.Is(err, store.ErrTargetNotPositive):
+		writeError(w, http.StatusUnprocessableEntity,
+			"цель должна быть больше нуля", "target_points")
 	default:
 		writeError(w, http.StatusInternalServerError, "внутренняя ошибка", "")
 	}

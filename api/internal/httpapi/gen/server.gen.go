@@ -4,10 +4,12 @@
 package gen
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -63,6 +65,30 @@ type SettingsResponse struct {
 	Settings Settings `json:"settings"`
 }
 
+// Skill defines model for Skill.
+type Skill struct {
+	// Archived Архивный навык в списки не попадает без явного запроса.
+	Archived  bool  `json:"archived"`
+	Id        int64 `json:"id"`
+	SortOrder int   `json:"sortOrder"`
+
+	// TargetPoints Цель в поинтах. Строго больше нуля — иначе прогресс делил бы на ноль.
+	TargetPoints float32 `json:"targetPoints"`
+	Title        string  `json:"title"`
+
+	// UnitLabel Подпись единицы, например «занятие». Нужна только для текста.
+	UnitLabel string `json:"unitLabel"`
+}
+
+// SkillInput defines model for SkillInput.
+type SkillInput struct {
+	Archived     *bool   `json:"archived,omitempty"`
+	SortOrder    *int    `json:"sortOrder,omitempty"`
+	TargetPoints float32 `json:"targetPoints"`
+	Title        string  `json:"title"`
+	UnitLabel    *string `json:"unitLabel,omitempty"`
+}
+
 // User defines model for User.
 type User struct {
 	Id    int64  `json:"id"`
@@ -79,11 +105,23 @@ type Unauthorized = Error
 // Unprocessable defines model for Unprocessable.
 type Unprocessable = Error
 
+// ListSkillsParams defines parameters for ListSkills.
+type ListSkillsParams struct {
+	// IncludeArchived Включить архивные.
+	IncludeArchived *bool `form:"includeArchived,omitempty" json:"includeArchived,omitempty"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
 // PutSettingsJSONRequestBody defines body for PutSettings for application/json ContentType.
 type PutSettingsJSONRequestBody = Settings
+
+// CreateSkillJSONRequestBody defines body for CreateSkill for application/json ContentType.
+type CreateSkillJSONRequestBody = SkillInput
+
+// UpdateSkillJSONRequestBody defines body for UpdateSkill for application/json ContentType.
+type UpdateSkillJSONRequestBody = SkillInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -105,6 +143,18 @@ type ServerInterface interface {
 	// PutSettings Сохранить настройки
 	// (PUT /settings)
 	PutSettings(w http.ResponseWriter, r *http.Request)
+	// ListSkills Навыки
+	// (GET /skills)
+	ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams)
+	// CreateSkill Завести навык
+	// (POST /skills)
+	CreateSkill(w http.ResponseWriter, r *http.Request)
+	// DeleteSkill Удалить навык
+	// (DELETE /skills/{id})
+	DeleteSkill(w http.ResponseWriter, r *http.Request, id int64)
+	// UpdateSkill Правка навыка
+	// (PUT /skills/{id})
+	UpdateSkill(w http.ResponseWriter, r *http.Request, id int64)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -144,6 +194,30 @@ func (_ Unimplemented) GetSettings(w http.ResponseWriter, r *http.Request) {
 // PutSettings Сохранить настройки
 // (PUT /settings)
 func (_ Unimplemented) PutSettings(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListSkills Навыки
+// (GET /skills)
+func (_ Unimplemented) ListSkills(w http.ResponseWriter, r *http.Request, params ListSkillsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateSkill Завести навык
+// (POST /skills)
+func (_ Unimplemented) CreateSkill(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteSkill Удалить навык
+// (DELETE /skills/{id})
+func (_ Unimplemented) DeleteSkill(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateSkill Правка навыка
+// (PUT /skills/{id})
+func (_ Unimplemented) UpdateSkill(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -231,6 +305,105 @@ func (siw *ServerInterfaceWrapper) PutSettings(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSkills operation middleware
+func (siw *ServerInterfaceWrapper) ListSkills(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSkillsParams
+
+	// ------------- Optional query parameter "includeArchived" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "includeArchived", r.URL.Query(), &params.IncludeArchived, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "includeArchived"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "includeArchived", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSkills(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSkill operation middleware
+func (siw *ServerInterfaceWrapper) CreateSkill(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSkill(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSkill operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSkill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSkill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSkill operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSkill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSkill(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -370,6 +543,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/settings", wrapper.PutSettings)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/skills", wrapper.ListSkills)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/skills", wrapper.CreateSkill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/skills/{id}", wrapper.DeleteSkill)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/skills/{id}", wrapper.UpdateSkill)
 	})
 
 	return r
