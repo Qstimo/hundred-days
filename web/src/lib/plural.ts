@@ -12,6 +12,8 @@ export const POINT_FORMS: PluralForms = ['поинт', 'поинта', 'поин
 export const TIME_FORMS: PluralForms = ['раз', 'раза', 'раз'];
 export const HOUR_FORMS: PluralForms = ['час', 'часа', 'часов'];
 export const PLAN_FORMS: PluralForms = ['пункт', 'пункта', 'пунктов'];
+export const ENTRY_FORMS: PluralForms = ['отметка', 'отметки', 'отметок'];
+export const TRACKER_FORMS: PluralForms = ['трекер', 'трекера', 'трекеров'];
 
 /**
  * Выбирает форму слова по числу.
