@@ -319,10 +319,22 @@ components:
 
     DayResponse:
       type: object
-      required: [date, period, sleepEnabled, trackers, plans,
+      required: [date, today, period, sleepEnabled, trackers, plans,
                  carryOverAvailable, skills]
       properties:
         date: { type: string, format: date }
+        today:
+          type: string
+          format: date
+          description: |
+            Сегодняшняя дата по зоне сервера. Нужна клиенту, чтобы знать,
+            какой день открыт — прошлый, сегодняшний или будущий, — и
+            выключить отметки в будущем.
+
+            Выводить её из периода нельзя: у не начавшегося периода номер
+            дня нулевой, и арифметика «начало плюс номер» дала бы неверную
+            дату. Браузерная дата тоже не годится — она разойдётся с
+            серверной в полночь и в другой зоне.
         period: { $ref: '#/components/schemas/Period' }
         sleepEnabled: { type: boolean }
         sleep:

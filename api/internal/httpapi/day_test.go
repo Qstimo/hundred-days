@@ -13,6 +13,7 @@ import (
 // dayJSON — ответ страницы дня.
 type dayJSON struct {
 	Date   string `json:"date"`
+	Today  string `json:"today"`
 	Period struct {
 		Title     string `json:"title"`
 		DayNumber int    `json:"dayNumber"`
@@ -77,6 +78,7 @@ func TestDayReturnsEverythingAtOnce(t *testing.T) {
 	day := getDay(t, srv, cookie, "2026-10-23")
 
 	require.Equal(t, "2026-10-23", day.Date)
+	require.Equal(t, "2026-10-23", day.Today)
 	require.Equal(t, 23, day.Period.DayNumber)
 	require.Equal(t, 78, day.Period.DaysLeft)
 	require.True(t, day.SleepEnabled)
@@ -420,4 +422,33 @@ func TestDayNeedsSession(t *testing.T) {
 // trackerPath собирает путь трекера.
 func trackerPath(id int64) string {
 	return fmt.Sprintf("/api/trackers/%d", id)
+}
+
+// Поле today — сегодняшняя дата сервера, а не открытая: по ним клиент
+// понимает, что открыт прошлый или будущий день.
+func TestDayTodayIsIndependentOfOpenedDate(t *testing.T) {
+	srv := newTestServer(t, time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC))
+	seedUser(t, "vadim", "длинный-пароль")
+	cookie := login(t, srv, "vadim", "длинный-пароль")
+
+	past := getDay(t, srv, cookie, "2026-10-01")
+	require.Equal(t, "2026-10-01", past.Date)
+	require.Equal(t, "2026-10-23", past.Today)
+
+	future := getDay(t, srv, cookie, "2026-11-01")
+	require.Equal(t, "2026-11-01", future.Date)
+	require.Equal(t, "2026-10-23", future.Today)
+}
+
+// Период ещё не начался — today всё равно верное. Вывести его из периода
+// в этом случае было бы нельзя: номер дня нулевой.
+func TestDayTodayWhenPeriodNotStarted(t *testing.T) {
+	srv := newTestServer(t, time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC))
+	seedUser(t, "vadim", "длинный-пароль")
+	cookie := login(t, srv, "vadim", "длинный-пароль")
+
+	day := getDay(t, srv, cookie, "2026-09-20")
+
+	require.Equal(t, 0, day.Period.DayNumber, "период начинается 1 октября")
+	require.Equal(t, "2026-09-20", day.Today)
 }

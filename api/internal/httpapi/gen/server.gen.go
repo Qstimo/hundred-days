@@ -93,12 +93,22 @@ type DayResponse struct {
 
 	// Period Вычисляется на сервере по дате начала и длительности. Не хранится:
 	// хранимый остаток разошёлся бы с календарём на следующий же день.
-	Period       Period       `json:"period"`
-	Plans        []DayPlan    `json:"plans"`
-	Skills       []DaySkill   `json:"skills"`
-	Sleep        *Sleep       `json:"sleep,omitempty"`
-	SleepEnabled bool         `json:"sleepEnabled"`
-	Trackers     []DayTracker `json:"trackers"`
+	Period       Period     `json:"period"`
+	Plans        []DayPlan  `json:"plans"`
+	Skills       []DaySkill `json:"skills"`
+	Sleep        *Sleep     `json:"sleep,omitempty"`
+	SleepEnabled bool       `json:"sleepEnabled"`
+
+	// Today Сегодняшняя дата по зоне сервера. Нужна клиенту, чтобы знать,
+	// какой день открыт — прошлый, сегодняшний или будущий, — и
+	// выключить отметки в будущем.
+	//
+	// Выводить её из периода нельзя: у не начавшегося периода номер
+	// дня нулевой, и арифметика «начало плюс номер» дала бы неверную
+	// дату. Браузерная дата тоже не годится — она разойдётся с
+	// серверной в полночь и в другой зоне.
+	Today    openapi_types.Date `json:"today"`
+	Trackers []DayTracker       `json:"trackers"`
 }
 
 // DaySkill defines model for DaySkill.
