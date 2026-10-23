@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
@@ -47,6 +48,41 @@ func (e TrackerMode) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// CarryOverRequest defines model for CarryOverRequest.
+type CarryOverRequest struct {
+	// Date День, в который переносим. Берём из предыдущего.
+	Date openapi_types.Date `json:"date"`
+}
+
+// DayPlan defines model for DayPlan.
+type DayPlan struct {
+	// CarriedFromId След переноса: пункт скопирован со вчера. В исходном дне он
+	// остаётся незакрытым — видно, что планировалось и уехало, а не
+	// исчезло.
+	CarriedFromId *int64             `json:"carriedFromId,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	Done          bool               `json:"done"`
+	DoneAt        *time.Time         `json:"doneAt,omitempty"`
+	Id            int64              `json:"id"`
+	SortOrder     int                `json:"sortOrder"`
+	Title         string             `json:"title"`
+}
+
+// DayPlanCreate defines model for DayPlanCreate.
+type DayPlanCreate struct {
+	Date      openapi_types.Date `json:"date"`
+	SortOrder *int               `json:"sortOrder,omitempty"`
+	Title     string             `json:"title"`
+}
+
+// DayPlanPatch Правятся только присланные поля. Отсутствие поля — «не менять», а не
+// «очистить».
+type DayPlanPatch struct {
+	Done      *bool   `json:"done,omitempty"`
+	SortOrder *int    `json:"sortOrder,omitempty"`
+	Title     *string `json:"title,omitempty"`
 }
 
 // Entry Отметка выполнения трекера за день. Существование отметки и есть
@@ -262,6 +298,15 @@ type ListTrackersParams struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// CreateDayPlanJSONRequestBody defines body for CreateDayPlan for application/json ContentType.
+type CreateDayPlanJSONRequestBody = DayPlanCreate
+
+// CarryOverDayPlansJSONRequestBody defines body for CarryOverDayPlans for application/json ContentType.
+type CarryOverDayPlansJSONRequestBody = CarryOverRequest
+
+// PatchDayPlanJSONRequestBody defines body for PatchDayPlan for application/json ContentType.
+type PatchDayPlanJSONRequestBody = DayPlanPatch
+
 // PutSettingsJSONRequestBody defines body for PutSettings for application/json ContentType.
 type PutSettingsJSONRequestBody = Settings
 
@@ -294,6 +339,18 @@ type ServerInterface interface {
 	// GetMe Текущий пользователь
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// CreateDayPlan Добавить пункт плана
+	// (POST /day-plans)
+	CreateDayPlan(w http.ResponseWriter, r *http.Request)
+	// CarryOverDayPlans Подтянуть незакрытые со вчера
+	// (POST /day-plans/carry-over)
+	CarryOverDayPlans(w http.ResponseWriter, r *http.Request)
+	// DeleteDayPlan Удалить пункт
+	// (DELETE /day-plans/{id})
+	DeleteDayPlan(w http.ResponseWriter, r *http.Request, id int64)
+	// PatchDayPlan Правка пункта
+	// (PATCH /day-plans/{id})
+	PatchDayPlan(w http.ResponseWriter, r *http.Request, id int64)
 	// GetHealth Проверка живости
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -360,6 +417,30 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request) {
 // GetMe Текущий пользователь
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateDayPlan Добавить пункт плана
+// (POST /day-plans)
+func (_ Unimplemented) CreateDayPlan(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CarryOverDayPlans Подтянуть незакрытые со вчера
+// (POST /day-plans/carry-over)
+func (_ Unimplemented) CarryOverDayPlans(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteDayPlan Удалить пункт
+// (DELETE /day-plans/{id})
+func (_ Unimplemented) DeleteDayPlan(w http.ResponseWriter, r *http.Request, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// PatchDayPlan Правка пункта
+// (PATCH /day-plans/{id})
+func (_ Unimplemented) PatchDayPlan(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -495,6 +576,86 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) CreateDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateDayPlan(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CarryOverDayPlans operation middleware
+func (siw *ServerInterfaceWrapper) CarryOverDayPlans(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CarryOverDayPlans(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDayPlan(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchDayPlan operation middleware
+func (siw *ServerInterfaceWrapper) PatchDayPlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchDayPlan(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1032,6 +1193,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/sleep/{date}", wrapper.PutSleep)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/day-plans", wrapper.CreateDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/day-plans/carry-over", wrapper.CarryOverDayPlans)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/day-plans/{id}", wrapper.DeleteDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/day-plans/{id}", wrapper.PatchDayPlan)
 	})
 
 	return r
