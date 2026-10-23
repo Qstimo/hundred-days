@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatRussianDate,
-  formatDaysLeft,
-  shiftISODate,
   compareISODate,
+  formatDayMonth,
+  formatDaysLeft,
+  formatRussianDate,
+  shiftISODate,
 } from './formatRussianDate';
 
 describe('formatRussianDate', () => {
@@ -91,5 +92,16 @@ describe('compareISODate', () => {
   it('верно сравнивает через границу месяца и года', () => {
     expect(compareISODate('2026-09-30', '2026-10-01')).toBeLessThan(0);
     expect(compareISODate('2026-12-31', '2027-01-01')).toBeLessThan(0);
+  });
+});
+
+describe('formatDayMonth', () => {
+  it('пишет дату без дня недели', () => {
+    expect(formatDayMonth('2027-01-08')).toBe('8 января');
+    expect(formatDayMonth('2026-10-23')).toBe('23 октября');
+  });
+
+  it('не съезжает на день назад в положительной зоне', () => {
+    expect(formatDayMonth('2026-01-01')).toBe('1 января');
   });
 });
