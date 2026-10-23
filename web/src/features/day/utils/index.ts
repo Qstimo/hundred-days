@@ -1,5 +1,6 @@
 export {
   compareISODate,
+  formatDayMonth,
   formatDaysLeft,
   formatRussianDate,
   shiftISODate,

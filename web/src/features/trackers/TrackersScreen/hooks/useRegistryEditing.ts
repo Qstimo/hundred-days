@@ -15,9 +15,12 @@ import type { Skill, SkillInput, Tracker, TrackerInput } from '../../hooks';
  * правка. Двумя флагами можно было бы выразить «закрыта и одновременно
  * правится», чего не бывает.
  */
-export function useRegistryEditing() {
-  const trackersQuery = useQueryTrackers();
-  const skillsQuery = useQuerySkills();
+export function useRegistryEditing(initial: {
+  trackers: Tracker[];
+  skills: Skill[];
+}) {
+  const trackersQuery = useQueryTrackers(initial.trackers);
+  const skillsQuery = useQuerySkills(initial.skills);
   const trackerMutation = useMutationTracker();
   const skillMutation = useMutationSkill();
 

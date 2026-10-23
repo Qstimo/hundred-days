@@ -36,7 +36,7 @@ describe('TrackerTable', () => {
     );
 
     expect(screen.getByText('Занятие')).toBeInTheDocument();
-    expect(screen.getByText(/3 раз в неделю/)).toBeInTheDocument();
+    expect(screen.getByText(/3 раза в неделю/)).toBeInTheDocument();
     expect(screen.getByText(/1 поинт за выполнение/)).toBeInTheDocument();
     expect(screen.getByText(/навык: Английский/)).toBeInTheDocument();
     expect(screen.getByText(/12 отметок/)).toBeInTheDocument();
@@ -53,6 +53,20 @@ describe('TrackerTable', () => {
     );
 
     expect(screen.getByText(/навык: —/)).toBeInTheDocument();
+  });
+
+  it('склоняет «раз» по числу', () => {
+    render(
+      <TrackerTable
+        trackers={[tracker({ weeklyTarget: 1 }), tracker({ id: 2, weeklyTarget: 5 })]}
+        skills={skills}
+        onEdit={vi.fn()}
+        onCreate={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/1 раз в неделю/)).toBeInTheDocument();
+    expect(screen.getByText(/5 раз в неделю/)).toBeInTheDocument();
   });
 
   it('правило «за час» называет часом', () => {

@@ -52,6 +52,18 @@ export function formatRussianDate(iso: string, today?: string): string {
   return `${dayMonth}, ${weekdayOf(iso)}`;
 }
 
+/**
+ * Дата без дня недели: «8 января».
+ *
+ * Нужна там, где дата стоит внутри фразы: «100 дней, до 8 января». Полная
+ * форма с днём недели там читалась бы как перечисление — «до 8 января,
+ * пятница».
+ */
+export function formatDayMonth(iso: string): string {
+  const { month, day } = parseISODate(iso);
+  return `${day} ${MONTHS_GENITIVE[month - 1]}`;
+}
+
 /** Остаток периода словами, со склонением. */
 export function formatDaysLeft(days: number): string {
   if (days <= 0) return 'период завершён';

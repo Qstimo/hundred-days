@@ -6,6 +6,7 @@ import { SkillList } from '../SkillList';
 import { TrackerDrawer } from '../TrackerDrawer';
 import { TrackerTable } from '../TrackerTable';
 import { useRegistryEditing } from './hooks';
+import type { IProps } from './types';
 
 /**
  * Экран реестров: трекеры и навыки.
@@ -13,8 +14,11 @@ import { useRegistryEditing } from './hooks';
  * Оба списка на одном экране нарочно: трекер без навыка непонятен, навык без
  * трекеров бесполезен, и заводят их почти всегда вместе.
  */
-export function TrackersScreen() {
-  const registry = useRegistryEditing();
+export function TrackersScreen({ initialTrackers, initialSkills }: IProps) {
+  const registry = useRegistryEditing({
+    trackers: initialTrackers,
+    skills: initialSkills,
+  });
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 p-4 pb-24 sm:p-6">

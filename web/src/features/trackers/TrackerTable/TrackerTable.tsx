@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { ENTRY_FORMS, POINT_FORMS, withPlural } from '@/lib/plural';
+import { ENTRY_FORMS, POINT_FORMS, TIME_FORMS, withPlural } from '@/lib/plural';
 import type { IProps } from './types';
 
 /** Реестр трекеров: что отмечается, по какой цене и как часто. */
@@ -29,7 +29,7 @@ export function TrackerTable({ trackers, skills, onEdit, onCreate }: IProps) {
               <div className="flex flex-1 flex-col gap-0.5">
                 <span className="font-medium">{t.title}</span>
                 <span className="text-xs text-muted-foreground">
-                  {t.weeklyTarget} раз в неделю ·{' '}
+                  {withPlural(t.weeklyTarget, TIME_FORMS)} в неделю ·{' '}
                   {withPlural(t.pointsValue, POINT_FORMS)}{' '}
                   {t.pointsRule === 'per_hour' ? 'за час' : 'за выполнение'} ·{' '}
                   навык: {skillTitle(t.skillId)} ·{' '}
