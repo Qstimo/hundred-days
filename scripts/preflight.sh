@@ -25,24 +25,54 @@ preflight_run() {
   done
   info '.env на месте, пароли заполнены'
 
-  check_port_free "$(env_value HD_HTTP_PORT || echo 8090)"
+  check_site_and_cookie
+  check_port_free HD_HTTP_PORT 8090
+  check_port_free HD_HTTPS_PORT 8443
   check_disk_space
   check_generated_in_sync
 
   info 'проверки пройдены'
 }
 
+# check_site_and_cookie — HD_SITE и HD_SECURE_COOKIE образуют пару.
+#
+# Проверка здесь, а не в приложении: рассогласование ломает ровно вход, то
+# есть обнаружилось бы после развёртывания и на живых людях. По HTTP cookie с
+# флагом Secure браузер не сохранит, и вход будет молча не проходить.
+check_site_and_cookie() {
+  local site secure
+  site="$(env_value HD_SITE)"
+  secure="$(env_value HD_SECURE_COOKIE)"
+
+  if [ -z "$site" ] && [ "$secure" = 'true' ]; then
+    fail '.env: HD_SECURE_COOKIE=true при пустом HD_SITE — по HTTP браузер не сохранит cookie сессии, и вход не пройдёт'
+  fi
+
+  if [ -n "$site" ] && [ "$secure" != 'true' ]; then
+    warn "HD_SITE=$site задан, а HD_SECURE_COOKIE не true: cookie сессии пойдёт и по открытому каналу"
+    return
+  fi
+
+  if [ -n "$site" ]; then
+    info "сайт $site по HTTPS, cookie сессии с флагом Secure"
+    return
+  fi
+  info 'сайт по HTTP на своём порту, HTTPS выключен'
+}
+
 # check_port_free — главная проверка на этой машине.
 #
-# Порты 80 и 443 держит прокси CAIRN, а 8080 оказался занят контейнером
-# другого проекта. Занятый порт — единственное, чем этот стек может
+# Порт 8080 занят контейнером другого проекта, а 80 и 443 нужны самому стеку,
+# когда задан HD_SITE. Занятый порт — единственное, чем этот стек может
 # столкнуться с соседями, и столкнуться он должен здесь, а не при запуске.
 #
 # Свой же контейнер порт занимать может: это обычное повторное
 # развёртывание, и compose его перезапустит.
 check_port_free() {
-  local port="$1"
-  [ -n "$port" ] || fail 'HD_HTTP_PORT не задан'
+  local key="$1" port
+  port="$(env_value "$key")"
+  port="${port:-$2}"
+  [ -n "$port" ] || fail "$key не задан"
 
   if ! ss -ltn "sport = :$port" 2>/dev/null | grep -q LISTEN; then
     info "порт $port свободен"
@@ -59,9 +89,9 @@ check_port_free() {
   local who
   who="$(docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null | grep ":$port->" | cut -f1 | paste -sd' ' || true)"
   if [ -n "$who" ]; then
-    fail "порт $port занят посторонним контейнером: $who. Смените HD_HTTP_PORT в .env"
+    fail "порт $port занят посторонним контейнером: $who. Смените $key в .env"
   fi
-  fail "порт $port занят посторонним процессом. Смените HD_HTTP_PORT в .env"
+  fail "порт $port занят посторонним процессом. Смените $key в .env"
 }
 
 check_disk_space() {

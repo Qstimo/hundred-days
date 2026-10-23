@@ -124,12 +124,22 @@ wait_healthy() {
 }
 
 report() {
-  local port elapsed
-  port="$(env_value HD_HTTP_PORT || echo 8090)"
+  local site port elapsed
+  site="$(env_value HD_SITE)"
   elapsed=$(( $(date +%s) - started_at ))
 
   step "Развёрнуто за ${elapsed} с"
-  info "приложение: http://$(hostname -I | awk '{print $1}'):${port}/"
+
+  # Адрес печатается по HD_SITE, а не по IP с портом: на поддомене вход по IP
+  # вёл бы на сертификат другого имени и пугал бы предупреждением браузера.
+  if [ -n "$site" ]; then
+    info "приложение: https://${site}/"
+    info 'первый заход после смены домена может подождать: Caddy получает сертификат'
+    return
+  fi
+
+  port="$(env_value HD_HTTP_PORT)"
+  info "приложение: http://$(hostname -I | awk '{print $1}'):${port:-8090}/"
   warn 'пока HTTPS не включён, пароль идёт по открытому каналу'
 }
 
