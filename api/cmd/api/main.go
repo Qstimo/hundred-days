@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Qstimo/hundred-days/api/internal/config"
+	"github.com/Qstimo/hundred-days/api/internal/db"
 	"github.com/Qstimo/hundred-days/api/internal/httpapi"
 )
 
@@ -31,9 +32,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	pool, err := db.Open(context.Background(), cfg.DatabaseURL)
+	if err != nil {
+		log.Error("база недоступна", "ошибка", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.RouterStub(),
+		Handler:           httpapi.NewRouter(pool, cfg, time.Now),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
