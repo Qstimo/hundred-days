@@ -322,14 +322,17 @@ func TestSettingsReturnsComputedPeriod(t *testing.T) {
 			SleepEnabled bool   `json:"sleepEnabled"`
 		} `json:"settings"`
 		Period struct {
-			DayNumber int `json:"dayNumber"`
-			DaysLeft  int `json:"daysLeft"`
-			Days      int `json:"days"`
+			Today     string `json:"today"`
+			DayNumber int    `json:"dayNumber"`
+			DaysLeft  int    `json:"daysLeft"`
+			Days      int    `json:"days"`
 		} `json:"period"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out))
 
 	require.Equal(t, "2026-10-01", out.Settings.PeriodStart)
+	require.Equal(t, "2026-10-23", out.Period.Today,
+		"период несёт сегодняшнюю дату: по ней дашборд отсчитывает отрезки")
 	require.Equal(t, 100, out.Settings.PeriodDays)
 	require.True(t, out.Settings.SleepEnabled)
 	require.Equal(t, 23, out.Period.DayNumber)

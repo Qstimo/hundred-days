@@ -25,16 +25,16 @@ export function DayScreen({ initialDay, date }: IProps) {
   const { data } = useQueryDay(date, initialDay);
   const day = data ?? initialDay;
 
-  // Сегодня приходит из ответа: его знает сервер по своей зоне. Выводить
-  // из периода нельзя — у не начавшегося номер дня нулевой, — а брать из
-  // браузера значило бы разойтись с сервером в полночь.
-  const isFuture = compareISODate(day.date, day.today) > 0;
+  // Сегодня приходит в периоде: его знает сервер по своей зоне. Выводить
+  // арифметикой по номеру дня нельзя — у не начавшегося периода он нулевой,
+  // — а брать из браузера значило бы разойтись с сервером в полночь.
+  const isFuture = compareISODate(day.date, day.period.today) > 0;
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-8 p-4 pb-24 sm:p-6">
       <PeriodHeader period={day.period} />
 
-      <DateNavigator date={day.date} today={day.today} />
+      <DateNavigator date={day.date} today={day.period.today} />
 
       <TrackerList items={day.trackers} date={day.date} isEditable={!isFuture} />
 

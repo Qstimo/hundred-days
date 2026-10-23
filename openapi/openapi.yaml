@@ -63,11 +63,24 @@ components:
         Вычисляется на сервере по дате начала и длительности. Не хранится:
         хранимый остаток разошёлся бы с календарём на следующий же день.
       type: object
-      required: [title, start, days, dayNumber, daysLeft]
+      required: [title, start, days, today, dayNumber, daysLeft]
       properties:
         title: { type: string }
         start: { type: string, format: date }
         days: { type: integer }
+        today:
+          type: string
+          format: date
+          description: |
+            Сегодняшняя дата по зоне сервера. Живёт здесь, а не отдельным
+            полем в каждом ответе: это такая же вычисленная величина, как
+            номер дня и остаток.
+
+            Клиенту она нужна, чтобы знать, открыт прошлый день, сегодняшний
+            или будущий, и чтобы отсчитывать отрезки дашборда. Выводить её
+            арифметикой «начало плюс номер дня» нельзя: у не начавшегося
+            периода номер нулевой. Браузерная дата тоже не годится — она
+            разойдётся с серверной в полночь.
         dayNumber:
           type: integer
           description: Номер сегодняшнего дня, с единицы. Ноль — период ещё не начался.
@@ -319,22 +332,10 @@ components:
 
     DayResponse:
       type: object
-      required: [date, today, period, sleepEnabled, trackers, plans,
+      required: [date, period, sleepEnabled, trackers, plans,
                  carryOverAvailable, skills]
       properties:
         date: { type: string, format: date }
-        today:
-          type: string
-          format: date
-          description: |
-            Сегодняшняя дата по зоне сервера. Нужна клиенту, чтобы знать,
-            какой день открыт — прошлый, сегодняшний или будущий, — и
-            выключить отметки в будущем.
-
-            Выводить её из периода нельзя: у не начавшегося периода номер
-            дня нулевой, и арифметика «начало плюс номер» дала бы неверную
-            дату. Браузерная дата тоже не годится — она разойдётся с
-            серверной в полночь и в другой зоне.
         period: { $ref: '#/components/schemas/Period' }
         sleepEnabled: { type: boolean }
         sleep:

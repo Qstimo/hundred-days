@@ -26,9 +26,12 @@ func toSettings(st dbgen.Setting) gen.Settings {
 func (s *Server) buildPeriod(st dbgen.Setting) gen.Period {
 	today := s.Today()
 	return gen.Period{
-		Title:     st.PeriodTitle,
-		Start:     openapi_types.Date{Time: st.PeriodStart},
-		Days:      int(st.PeriodDays),
+		Title: st.PeriodTitle,
+		Start: openapi_types.Date{Time: st.PeriodStart},
+		Days:  int(st.PeriodDays),
+		// Сегодня отдаётся отдельным полем, а не выводится клиентом из
+		// номера дня: у не начавшегося периода номер нулевой.
+		Today:     openapi_types.Date{Time: today},
 		DayNumber: domain.DayNumber(st.PeriodStart, today),
 		DaysLeft:  domain.DaysLeft(st.PeriodStart, int(st.PeriodDays), today),
 	}

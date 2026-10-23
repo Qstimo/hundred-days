@@ -13,9 +13,9 @@ import (
 // dayJSON — ответ страницы дня.
 type dayJSON struct {
 	Date   string `json:"date"`
-	Today  string `json:"today"`
 	Period struct {
 		Title     string `json:"title"`
+		Today     string `json:"today"`
 		DayNumber int    `json:"dayNumber"`
 		DaysLeft  int    `json:"daysLeft"`
 	} `json:"period"`
@@ -78,7 +78,7 @@ func TestDayReturnsEverythingAtOnce(t *testing.T) {
 	day := getDay(t, srv, cookie, "2026-10-23")
 
 	require.Equal(t, "2026-10-23", day.Date)
-	require.Equal(t, "2026-10-23", day.Today)
+	require.Equal(t, "2026-10-23", day.Period.Today)
 	require.Equal(t, 23, day.Period.DayNumber)
 	require.Equal(t, 78, day.Period.DaysLeft)
 	require.True(t, day.SleepEnabled)
@@ -424,8 +424,8 @@ func trackerPath(id int64) string {
 	return fmt.Sprintf("/api/trackers/%d", id)
 }
 
-// Поле today — сегодняшняя дата сервера, а не открытая: по ним клиент
-// понимает, что открыт прошлый или будущий день.
+// Поле today в периоде — сегодняшняя дата сервера, а не открытая: по ним
+// клиент понимает, что открыт прошлый или будущий день.
 func TestDayTodayIsIndependentOfOpenedDate(t *testing.T) {
 	srv := newTestServer(t, time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC))
 	seedUser(t, "vadim", "длинный-пароль")
@@ -433,11 +433,11 @@ func TestDayTodayIsIndependentOfOpenedDate(t *testing.T) {
 
 	past := getDay(t, srv, cookie, "2026-10-01")
 	require.Equal(t, "2026-10-01", past.Date)
-	require.Equal(t, "2026-10-23", past.Today)
+	require.Equal(t, "2026-10-23", past.Period.Today)
 
 	future := getDay(t, srv, cookie, "2026-11-01")
 	require.Equal(t, "2026-11-01", future.Date)
-	require.Equal(t, "2026-10-23", future.Today)
+	require.Equal(t, "2026-10-23", future.Period.Today)
 }
 
 // Период ещё не начался — today всё равно верное. Вывести его из периода
@@ -450,5 +450,5 @@ func TestDayTodayWhenPeriodNotStarted(t *testing.T) {
 	day := getDay(t, srv, cookie, "2026-09-20")
 
 	require.Equal(t, 0, day.Period.DayNumber, "период начинается 1 октября")
-	require.Equal(t, "2026-09-20", day.Today)
+	require.Equal(t, "2026-09-20", day.Period.Today)
 }
