@@ -52,6 +52,14 @@ func NewRouter(pool *pgxpool.Pool, cfg config.Config, now Clock) http.Handler {
 			r.Use(s.requireSession)
 
 			r.Get("/auth/me", s.GetMe)
+
+			r.Get("/day", func(w http.ResponseWriter, r *http.Request) {
+				params, ok := dayParamsFrom(w, r)
+				if !ok {
+					return
+				}
+				s.GetDay(w, r, params)
+			})
 			r.Get("/settings", s.GetSettings)
 			r.Put("/settings", s.PutSettings)
 

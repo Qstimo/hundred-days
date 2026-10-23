@@ -85,6 +85,42 @@ type DayPlanPatch struct {
 	Title     *string `json:"title,omitempty"`
 }
 
+// DayResponse defines model for DayResponse.
+type DayResponse struct {
+	// CarryOverAvailable Есть ли что переносить со вчера. Кнопка показывается только тогда.
+	CarryOverAvailable bool               `json:"carryOverAvailable"`
+	Date               openapi_types.Date `json:"date"`
+
+	// Period Вычисляется на сервере по дате начала и длительности. Не хранится:
+	// хранимый остаток разошёлся бы с календарём на следующий же день.
+	Period       Period       `json:"period"`
+	Plans        []DayPlan    `json:"plans"`
+	Skills       []DaySkill   `json:"skills"`
+	Sleep        *Sleep       `json:"sleep,omitempty"`
+	SleepEnabled bool         `json:"sleepEnabled"`
+	Trackers     []DayTracker `json:"trackers"`
+}
+
+// DaySkill defines model for DaySkill.
+type DaySkill struct {
+	// EarnedPoints Забрано поинтов за всё время. Сумма зафиксированных в отметках
+	// значений, а не пересчёт по текущей цене трекеров.
+	EarnedPoints float32 `json:"earnedPoints"`
+	Skill        Skill   `json:"skill"`
+}
+
+// DayTracker defines model for DayTracker.
+type DayTracker struct {
+	// Entry Отметка за этот день. Пусто — не сделано.
+	Entry   *Entry  `json:"entry,omitempty"`
+	Tracker Tracker `json:"tracker"`
+
+	// WeekDone Сколько раз выполнен на неделе, в которую попадает запрошенная
+	// дата. Неделя считается с понедельника.
+	WeekDone   int `json:"weekDone"`
+	WeekTarget int `json:"weekTarget"`
+}
+
 // Entry Отметка выполнения трекера за день. Существование отметки и есть
 // «сделано»: отдельного значения «не сделано» нет, снятие галочки
 // удаляет запись.
@@ -284,6 +320,11 @@ type Unauthorized = Error
 // Unprocessable defines model for Unprocessable.
 type Unprocessable = Error
 
+// GetDayParams defines parameters for GetDay.
+type GetDayParams struct {
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+}
+
 // ListSkillsParams defines parameters for ListSkills.
 type ListSkillsParams struct {
 	// IncludeArchived Включить архивные.
@@ -339,6 +380,9 @@ type ServerInterface interface {
 	// GetMe Текущий пользователь
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetDay Всё для страницы дня
+	// (GET /day)
+	GetDay(w http.ResponseWriter, r *http.Request, params GetDayParams)
 	// CreateDayPlan Добавить пункт плана
 	// (POST /day-plans)
 	CreateDayPlan(w http.ResponseWriter, r *http.Request)
@@ -417,6 +461,12 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request) {
 // GetMe Текущий пользователь
 // (GET /auth/me)
 func (_ Unimplemented) GetMe(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetDay Всё для страницы дня
+// (GET /day)
+func (_ Unimplemented) GetDay(w http.ResponseWriter, r *http.Request, params GetDayParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -576,6 +626,39 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDay operation middleware
+func (siw *ServerInterfaceWrapper) GetDay(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDayParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", r.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDay(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1205,6 +1288,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/day-plans/{id}", wrapper.PatchDayPlan)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/day", wrapper.GetDay)
 	})
 
 	return r

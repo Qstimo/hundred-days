@@ -290,6 +290,58 @@ components:
           format: date
           description: День, в который переносим. Берём из предыдущего.
 
+    DayTracker:
+      type: object
+      required: [tracker, weekDone, weekTarget]
+      properties:
+        tracker: { $ref: '#/components/schemas/Tracker' }
+        entry:
+          allOf: [{ $ref: '#/components/schemas/Entry' }]
+          nullable: true
+          description: Отметка за этот день. Пусто — не сделано.
+        weekDone:
+          type: integer
+          description: |
+            Сколько раз выполнен на неделе, в которую попадает запрошенная
+            дата. Неделя считается с понедельника.
+        weekTarget: { type: integer }
+
+    DaySkill:
+      type: object
+      required: [skill, earnedPoints]
+      properties:
+        skill: { $ref: '#/components/schemas/Skill' }
+        earnedPoints:
+          type: number
+          description: |
+            Забрано поинтов за всё время. Сумма зафиксированных в отметках
+            значений, а не пересчёт по текущей цене трекеров.
+
+    DayResponse:
+      type: object
+      required: [date, period, sleepEnabled, trackers, plans,
+                 carryOverAvailable, skills]
+      properties:
+        date: { type: string, format: date }
+        period: { $ref: '#/components/schemas/Period' }
+        sleepEnabled: { type: boolean }
+        sleep:
+          allOf: [{ $ref: '#/components/schemas/Sleep' }]
+          nullable: true
+        trackers:
+          type: array
+          items: { $ref: '#/components/schemas/DayTracker' }
+        plans:
+          type: array
+          items: { $ref: '#/components/schemas/DayPlan' }
+        carryOverAvailable:
+          type: boolean
+          description: |
+            Есть ли что переносить со вчера. Кнопка показывается только тогда.
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/DaySkill' }
+
     HealthResponse:
       type: object
       required: [status]
@@ -723,3 +775,29 @@ paths:
         '204': { description: Удалён }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /day:
+    get:
+      operationId: getDay
+      summary: Всё для страницы дня
+      description: |
+        Один ответ, а не шесть запросов: это главный экран, он открывается
+        каждый день, и собранный из кусков показывал бы шесть индикаторов
+        загрузки вместо одного.
+
+        Без параметра `date` отдаётся сегодня — по зоне сервера, а не
+        браузера.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Данные дня
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DayResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
