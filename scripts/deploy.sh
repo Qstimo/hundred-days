@@ -68,7 +68,10 @@ build_images() {
   step 'Собираю образы'
   # BuildKit обязателен: классический сборщик на этой машине не разрешает
   # DNS внутри сборочного контейнера, и установка зависимостей падает.
-  DOCKER_BUILDKIT=1 compose build "${build_args[@]}" api web
+  #
+  # Образ миграций собирается здесь же, до остановки приложений: собирать его
+  # перед самими миграциями значит растянуть простой на время сборки.
+  DOCKER_BUILDKIT=1 compose --profile tools build "${build_args[@]}" api web migrator
 }
 
 stop_apps() {
@@ -80,17 +83,17 @@ stop_apps() {
 migrate() {
   step 'Применяю миграции'
 
-  local owner_password port url
-  owner_password="$(env_value HD_POSTGRES_PASSWORD)"
-  port="$(env_value HD_POSTGRES_PORT || echo 5436)"
-  url="postgres://hd_owner:${owner_password}@localhost:${port}/hundred_days?sslmode=disable"
-
-  # Миграции применяет владелец схемы, а не роль приложения: та права
-  # менять таблицы не имеет, и это намеренно.
-  (cd "$ROOT/api" && ./tools.sh goose -dir internal/db/migrations postgres "$url" up) \
+  # Миграции идут в контейнере, а не с машины: на сервере нет ни Go, ни
+  # клиента PostgreSQL, а база наружу не публикуется — достать её можно
+  # только изнутри сети стека.
+  #
+  # Адрес и пароль владельца схемы приходят переменными из
+  # docker-compose.yml, поэтому в команде их нет: аргументы видны и в
+  # `docker ps`, и в журнале развёртывания.
+  compose --profile tools run --rm migrator up \
     || fail 'миграции не применились — приложения оставлены остановленными, база цела из копии'
 
-  (cd "$ROOT/api" && ./tools.sh goose -dir internal/db/migrations postgres "$url" status) | tail -3
+  compose --profile tools run --rm migrator status | tail -3
 }
 
 start_all() {
@@ -124,23 +127,19 @@ wait_healthy() {
 }
 
 report() {
-  local site port elapsed
-  site="$(env_value HD_SITE)"
+  local url elapsed
+  url="$(env_value HD_PUBLIC_URL)"
   elapsed=$(( $(date +%s) - started_at ))
 
   step "Развёрнуто за ${elapsed} с"
 
-  # Адрес печатается по HD_SITE, а не по IP с портом: на поддомене вход по IP
-  # вёл бы на сертификат другого имени и пугал бы предупреждением браузера.
-  if [ -n "$site" ]; then
-    info "приложение: https://${site}/"
-    info 'первый заход после смены домена может подождать: Caddy получает сертификат'
-    return
-  fi
+  # Адрес печатается по HD_PUBLIC_URL, а не по IP с портом: снаружи стек
+  # доступен только через прокси CAIRN, и вход по IP никуда не привёл бы.
+  info "приложение: $url"
 
-  port="$(env_value HD_HTTP_PORT)"
-  info "приложение: http://$(hostname -I | awk '{print $1}'):${port:-8090}/"
-  warn 'пока HTTPS не включён, пароль идёт по открытому каналу'
+  case "$url" in
+    http://*) warn 'HTTPS не включён: пароль идёт по открытому каналу' ;;
+  esac
 }
 
 main "$@"

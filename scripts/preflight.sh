@@ -2,8 +2,8 @@
 # Проверки перед развёртыванием.
 #
 # Все проверки идут ДО остановки приложений. Смысл в этом: упасть на
-# занятом порту после остановки значит остаться с лежащим приложением и
-# непонятной причиной.
+# занятом порту или на отсутствующей сети после остановки значит остаться с
+# лежащим приложением и непонятной причиной.
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
@@ -25,46 +25,72 @@ preflight_run() {
   done
   info '.env на месте, пароли заполнены'
 
-  check_site_and_cookie
-  check_port_free HD_HTTP_PORT 8090
-  check_port_free HD_HTTPS_PORT 8443
+  check_access_pair
+  check_entrance
   check_disk_space
   check_generated_in_sync
 
   info 'проверки пройдены'
 }
 
-# check_site_and_cookie — HD_SITE и HD_SECURE_COOKIE образуют пару.
+# check_access_pair — HD_PUBLIC_URL и HD_SECURE_COOKIE образуют пару.
 #
 # Проверка здесь, а не в приложении: рассогласование ломает ровно вход, то
 # есть обнаружилось бы после развёртывания и на живых людях. По HTTP cookie с
-# флагом Secure браузер не сохранит, и вход будет молча не проходить.
-check_site_and_cookie() {
-  local site secure
-  site="$(env_value HD_SITE)"
-  secure="$(env_value HD_SECURE_COOKIE)"
+# флагом Secure браузер не сохранит, а по HTTPS без этого флага cookie сессии
+# ходила бы и по открытому каналу.
+check_access_pair() {
+  local url secure
+  url="$(env_value HD_PUBLIC_URL || true)"
+  secure="$(env_value HD_SECURE_COOKIE || true)"
 
-  if [ -z "$site" ] && [ "$secure" = 'true' ]; then
-    fail '.env: HD_SECURE_COOKIE=true при пустом HD_SITE — по HTTP браузер не сохранит cookie сессии, и вход не пройдёт'
-  fi
+  [ -n "$url" ] || fail '.env: HD_PUBLIC_URL не задан — развёртыванию нечего проверять и нечего печатать'
 
-  if [ -n "$site" ] && [ "$secure" != 'true' ]; then
-    warn "HD_SITE=$site задан, а HD_SECURE_COOKIE не true: cookie сессии пойдёт и по открытому каналу"
-    return
-  fi
-
-  if [ -n "$site" ]; then
-    info "сайт $site по HTTPS, cookie сессии с флагом Secure"
-    return
-  fi
-  info 'сайт по HTTP на своём порту, HTTPS выключен'
+  case "$url" in
+    https://*)
+      [ "$secure" = 'true' ] \
+        || fail ".env: HD_PUBLIC_URL=$url по HTTPS, а HD_SECURE_COOKIE не true — cookie сессии пойдёт и по открытому каналу"
+      info "адрес $url, cookie сессии с флагом Secure"
+      ;;
+    http://*)
+      [ "$secure" != 'true' ] \
+        || fail ".env: HD_PUBLIC_URL=$url по HTTP, а HD_SECURE_COOKIE=true — браузер не сохранит cookie сессии, и вход молча не пройдёт"
+      info "адрес $url, HTTPS выключен"
+      ;;
+    *)
+      fail ".env: HD_PUBLIC_URL=$url — нужен полный адрес со схемой, http:// или https://"
+      ;;
+  esac
 }
 
-# check_port_free — главная проверка на этой машине.
+# check_entrance — проверка того единственного, чем стек держится за внешний
+# мир. Способов два, и у каждого своя беда.
 #
-# Порт 8080 занят контейнером другого проекта, а 80 и 443 нужны самому стеку,
-# когда задан HD_SITE. Занятый порт — единственное, чем этот стек может
-# столкнуться с соседями, и столкнуться он должен здесь, а не при запуске.
+# На сервере вход один: прокси CAIRN приходит по общей сети, и портов стек не
+# публикует вовсе. Нет сети — трафику некуда приходить, и узнать об этом надо
+# до остановки приложений.
+#
+# На машине разработки прокси CAIRN нет, вход идёт портом, и порт должен быть
+# свободен.
+check_entrance() {
+  local net
+  net="$(env_value HD_EDGE_NETWORK || true)"
+
+  if [ -z "$net" ]; then
+    check_port_free HD_HTTP_PORT 8090
+    return
+  fi
+
+  docker network inspect "$net" >/dev/null 2>&1 \
+    || fail "нет docker-сети $net: её создаёт стек CAIRN (служба proxy). Поднимите CAIRN — иначе приложению некуда принимать трафик"
+  info "сеть $net на месте — прокси CAIRN до стека дотянется"
+}
+
+# check_port_free — проверка для машины разработки, где вход идёт портом.
+#
+# Порт 8080 на ней занят контейнером другого проекта. Занятый порт — то
+# немногое, чем этот стек может столкнуться с соседями, и столкнуться он
+# должен здесь, а не при запуске.
 #
 # Свой же контейнер порт занимать может: это обычное повторное
 # развёртывание, и compose его перезапустит.

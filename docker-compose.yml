@@ -81,22 +81,10 @@ services:
 
   proxy:
     image: caddy:2-alpine
-    ports:
-      # Порты вынесены в переменные: на поддомене нужны именно 80 и 443, а на
-      # машине разработки они бывают заняты — тогда стек сдвигается целиком.
-      #
-      # 80 публикуется и в режиме HTTPS, а не только вместо него: по нему
-      # Let's Encrypt проверяет владение доменом, и без него сертификат не
-      # выпустится. Caddy отвечает на нём редиректом на HTTPS.
-      - '${HD_HTTP_PORT:-8080}:80'
-      - '${HD_HTTPS_PORT:-8443}:443'
-    environment:
-      # Значение по умолчанию задаётся здесь, а не в Caddyfile: у Caddy
-      # подстановка `{$VAR:default}` применяет default только к НЕзаданной
-      # переменной, а переданная пустая строка оставляет адрес сайта пустым —
-      # тогда Caddy принимает блок сайта за блок глобальных настроек и
-      # падает с «unrecognized global option: handle».
-      HD_SITE: ${HD_SITE:-:80}
+    # Порты наружу не публикуются: на сервере в стек ходит прокси CAIRN по
+    # общей сети (docker-compose.server.yml), и открытый порт был бы вторым
+    # входом в обход TLS. Машине разработки вход нужен — его открывает
+    # docker-compose.override.yml, который compose подхватывает сам.
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -107,6 +95,30 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Миграции. Отдельная служба, а не шаг на машине: на сервере нет ни Go, ни
+  # клиента PostgreSQL, а база наружу не публикуется — достать её можно
+  # только изнутри сети стека.
+  #
+  # Профиль «tools» означает, что `compose up` эту службу не поднимает:
+  # миграции запускает развёртывание одной командой и ждёт её завершения.
+  migrator:
+    image: hundred-days-migrator:latest
+    build:
+      context: .
+      dockerfile: api/Dockerfile.migrate
+    profiles: [tools]
+    environment:
+      GOOSE_DRIVER: postgres
+      # Владелец схемы, а не роль приложения: та права менять таблицы не
+      # имеет, и это намеренно.
+      GOOSE_DBSTRING: postgres://hd_owner:${HD_POSTGRES_PASSWORD:?}@postgres:5432/hundred_days?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
+  # Том Caddy: сертификатов здесь нет (TLS держит прокси CAIRN), но в нём
+  # лежит остальное состояние, и без тома оно пересоздавалось бы при каждом
+  # запуске.
   caddy-data:

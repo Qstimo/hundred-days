@@ -1,0 +1,24 @@
+# Образ для миграций: goose и сами миграции, больше ничего.
+#
+# Миграции применяются из контейнера, а не с машины, по двум причинам. На
+# сервере нет ни Go, ни клиента PostgreSQL — ставить их туда значит заводить
+# вторую копию инструментов разработки. И база наружу не публикуется вовсе:
+# достать её можно только изнутри сети стека.
+#
+# goose берётся из модуля инструментов (api/tools), как и в разработке:
+# версия зафиксирована там, и развёртывание применяет миграции тем же
+# инструментом, которым они писались.
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY api/tools/go.mod api/tools/go.sum ./
+RUN go mod download
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' \
+	-o /out/goose github.com/pressly/goose/v3/cmd/goose
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/goose /goose
+COPY api/internal/db/migrations /migrations
+USER nonroot
+# Драйвер и адрес приходят переменными GOOSE_DRIVER и GOOSE_DBSTRING: пароль
+# в аргументах команды виден в `docker ps` и в журнале развёртывания.
+ENTRYPOINT ["/goose", "-dir", "/migrations"]

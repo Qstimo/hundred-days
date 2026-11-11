@@ -3,7 +3,11 @@
 **/node_modules
 **/.next
 **/.turbo
-api/tools
+# Модуль инструментов: в образ приложения он не едет (там нет Go), но образу
+# миграций нужны его go.mod и go.sum — из них собирается goose.
+api/tools/**
+!api/tools/go.mod
+!api/tools/go.sum
 api/bin
 docs
 .git

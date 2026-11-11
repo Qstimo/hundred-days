@@ -1,0 +1,96 @@
+# Автоматическое развёртывание: зелёный CI на main → пересборка на сервере.
+#
+# Раннер ничего не собирает — он подключается по ssh и запускает на сервере
+# scripts/deploy.sh. Сборка идёт там же, где приложение работает: иначе
+# пришлось бы заводить реестр образов и возить их через интернет.
+#
+# Запуск по workflow_run, а не по push: тесты уже прогоняет CI, и повторять
+# их здесь значило бы ждать дважды. Заодно на сервер не уедет коммит с
+# красными тестами.
+#
+# Что нужно завести в репозитории (Settings → Secrets and variables → Actions):
+#   секрет SSH_PRIVATE_KEY — закрытая часть ключа для CI
+#   секрет SSH_KNOWN_HOSTS — отпечаток сервера, `ssh-keyscan <адрес>`
+#   секрет SSH_USER        — пользователь на сервере (cairn)
+#   секрет SSH_HOST        — адрес сервера
+#   переменная HD_BASE_URL — необязательно: адрес для проверки снаружи
+#
+# Ключ должен быть отдельным, не личным: он лежит у GitHub, и его отзыв не
+# должен лишать доступа к серверу.
+name: Развернуть на сервере
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Ручной запуск: кнопка Run workflow на вкладке Actions.
+  workflow_dispatch:
+
+# Два развёртывания одновременно недопустимы: они столкнутся на миграциях и
+# сборке. Новое ждёт окончания предыдущего, а не отменяет его — прерванное
+# оставило бы систему с применёнными миграциями и старым кодом.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Развернуть
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Красный CI до сервера не доезжает. Ручной запуск проверки не требует:
+    # его делает человек, который знает, зачем.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.workflow_run.conclusion == 'success'
+    steps:
+      # Пустой секрет иначе проявляется мгновенным падением ssh без
+      # объяснений: выражение подставляет пустоту, и команда превращается в
+      # `ssh ... "@"`. Частая причина — значения заведены во вкладке
+      # Variables вместо Secrets.
+      - name: Проверить секреты
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          missing=''
+          for name in SSH_PRIVATE_KEY SSH_KNOWN_HOSTS SSH_USER SSH_HOST; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "Не заданы секреты:$missing"
+            echo "Заводятся в Settings → Secrets and variables → Actions, вкладка Secrets (не Variables)."
+            exit 1
+          fi
+          echo 'все четыре секрета на месте'
+
+      - name: Настроить ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ci
+          chmod 600 ~/.ssh/id_ci
+          # Отпечаток закреплён заранее: с StrictHostKeyChecking=no раннер
+          # доверился бы любому хосту, который ответит по этому адресу.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Развернуть на сервере
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          ssh -i ~/.ssh/id_ci -o ConnectTimeout=15 -o IdentitiesOnly=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" \
+            'cd /opt/hundred-days && git pull --ff-only && ./scripts/deploy.sh'
+
+      - name: Проверить снаружи
+        # Раннер проверяет приложение из интернета — то, чего серверная
+        # проверка в deploy.sh увидеть не может: доступность поддомена и
+        # сертификат.
+        if: vars.HD_BASE_URL != ''
+        run: curl -fsS --max-time 20 "${{ vars.HD_BASE_URL }}/api/health"

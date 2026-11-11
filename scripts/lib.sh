@@ -30,8 +30,22 @@ fail() {
 # compose вызывает docker compose из корня системы. Имя проекта задано в
 # docker-compose.yml, поэтому каталог вызова значения не имеет — но
 # относительные пути к Caddyfile и init-скриптам имеют.
+#
+# Файлы перечислены явно, и это не формальность: docker-compose.override.yml
+# лежит в репозитории и подхватывается сам, а он публикует порты базы и API
+# наружу. На машине разработки это нужно, на сервере это дыра.
+#
+# Серверная надстройка добавляется, когда в .env задана HD_EDGE_NETWORK: ею
+# включается подключение к сети прокси CAIRN, а на машине разработки такой
+# сети нет.
 compose() {
-  (cd "$ROOT" && docker compose "$@")
+  local files=(-f "$ROOT/docker-compose.yml")
+
+  if [ -n "$(env_value HD_EDGE_NETWORK || true)" ]; then
+    files+=(-f "$ROOT/docker-compose.server.yml")
+  fi
+
+  (cd "$ROOT" && docker compose "${files[@]}" "$@")
 }
 
 # env_value читает значение переменной из .env, не исполняя файл.
