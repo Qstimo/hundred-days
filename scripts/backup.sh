@@ -23,8 +23,19 @@ main() {
     || fail 'не вышло прочитать HD_POSTGRES_PASSWORD из .env'
   [ -n "$owner_password" ] || fail 'HD_POSTGRES_PASSWORD пуст'
 
+  # Контейнера базы нет вовсе — это первое развёртывание, и терять нечего.
+  # Отличать этот случай от остановленной базы важно: там копию снять нельзя,
+  # а причину знать надо, и молча пройти мимо значило бы начать миграции без
+  # возможности откатиться.
+  local container
+  container="$(compose ps -a postgres --format '{{.Name}}' | head -1)"
+  if [ -z "$container" ]; then
+    warn 'базы ещё нет — первое развёртывание, копию снимать нечего'
+    return 0
+  fi
+
   compose ps postgres --format '{{.Status}}' | grep -q 'Up' \
-    || fail 'postgres не запущен: копию снимать нечем'
+    || fail 'postgres остановлен: копию снимать нечем. Поднимите базу или запустите развёртывание с --skip-backup'
 
   local stamp file
   stamp="$(date +%Y%m%d-%H%M%S)"
